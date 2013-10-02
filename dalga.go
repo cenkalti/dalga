@@ -4,6 +4,7 @@ package main
 // take config from flag
 // ability to run without config
 // make http server closeable
+// make dalga a type
 // write basic integration tests
 // handle mysql disconnect
 // handle rabbitmq disconnect
