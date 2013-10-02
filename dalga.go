@@ -26,35 +26,61 @@ import (
 var (
 	debugging  = flag.Bool("d", false, "turn on debug messages")
 	configPath = flag.String("c", "dalga.ini", "config file path")
-	cfg        struct {
-		MySQL struct {
-			Driver   string
-			User     string
-			Password string
-			Host     string
-			Port     string
-			Db       string
-			Table    string
-		}
-		RabbitMQ struct {
-			User     string
-			Password string
-			Host     string
-			Port     string
-			VHost    string
-			Exchange string
-		}
-		HTTP struct {
-			Host string
-			Port string
-		}
-	}
-
-	db      *sql.DB
-	rabbit  *amqp.Connection
-	channel *amqp.Channel
-	wakeUp  = make(chan int, 1)
+	cfg        *Config
+	db         *sql.DB
+	rabbit     *amqp.Connection
+	channel    *amqp.Channel
+	wakeUp     = make(chan int, 1)
 )
+
+type Config struct {
+	MySQL struct {
+		User     string
+		Password string
+		Host     string
+		Port     string
+		Db       string
+		Table    string
+	}
+	RabbitMQ struct {
+		User     string
+		Password string
+		Host     string
+		Port     string
+		VHost    string
+		Exchange string
+	}
+	HTTP struct {
+		Host string
+		Port string
+	}
+}
+
+// NewConfig returns a pointer to a newly created Config initialized with default parameters.
+func NewConfig() *Config {
+	c := &Config{}
+	c.MySQL.User = "root"
+	c.MySQL.Host = "localhost"
+	c.MySQL.Port = "3306"
+	c.MySQL.Db = "test"
+	c.MySQL.Table = "dalga"
+	c.RabbitMQ.User = "guest"
+	c.RabbitMQ.Password = "guest"
+	c.RabbitMQ.Host = "localhost"
+	c.RabbitMQ.Port = "5672"
+	c.RabbitMQ.VHost = "/"
+	c.HTTP.Host = "0.0.0.0"
+	c.HTTP.Port = "17500"
+	return c
+}
+
+func (c *Config) LoadFromFile(path string) error {
+	err := gcfg.ReadFileInto(c, path)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 type Job struct {
 	routingKey string
@@ -220,7 +246,8 @@ func main() {
 	flag.Parse()
 
 	// Read config
-	err := gcfg.ReadFileInto(&cfg, *configPath)
+	cfg = NewConfig()
+	err := cfg.LoadFromFile(*configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
