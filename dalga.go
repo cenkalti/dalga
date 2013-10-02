@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -40,7 +41,7 @@ var (
 type Job struct {
 	routingKey string
 	body       string
-	interval   uint // Seconds
+	interval   time.Duration
 	nextRun    time.Time
 	state      string
 }
@@ -101,27 +102,18 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 
 // front returns the first job to be run in the queue.
 func front() (*Job, error) {
+	var interval uint
 	j := Job{}
 	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run, state " +
 		"FROM " + cfg.DB.Table + " " +
-		"WHERE next_run = (" +
-		"SELECT MIN(next_run) FROM " + cfg.DB.Table + ")")
-	err := row.Scan(&j.routingKey, &j.body, &j.interval, &j.nextRun, &j.state)
+		"WHERE state='WAITING' " +
+		"ORDER BY next_run ASC")
+	err := row.Scan(&j.routingKey, &j.body, &interval, &j.nextRun, &j.state)
 	if err != nil {
 		return nil, err
 	}
+	j.interval = time.Duration(interval) * time.Second
 	return &j, nil
-}
-
-// Delete deletes the Job j from the queue.
-func (j *Job) Delete() error {
-	_, err := db.Exec("DELETE FROM "+cfg.DB.Table+" "+
-		"WHERE routing_key=? AND body=?",
-		j.routingKey, j.body)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // Publish sends a message to exchange defined in the config and
@@ -147,9 +139,9 @@ func (j *Job) Publish() error {
 
 	// Update state from database
 	_, err = db.Exec("UPDATE "+cfg.DB.Table+" "+
-		"SET state=RUNNING "+
+		"SET state='RUNNING', next_run=? "+
 		"WHERE routing_key=? AND body=?",
-		j.routingKey, j.body)
+		j.CalculateNextRun(), j.routingKey, j.body)
 	if err != nil {
 		return err
 	}
@@ -161,38 +153,50 @@ func (j *Job) Remaining() time.Duration {
 	return -time.Since(j.nextRun)
 }
 
+func (j *Job) CalculateNextRun() time.Time {
+	return j.nextRun.Add(j.interval)
+}
+
 // publisher runs a loop that reads the next Job from the queue and publishes it.
 func publisher() {
+	publish := func(j *Job) {
+		err := j.Publish()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+
 	for {
 		job, err := front()
 		if err != nil {
-			fmt.Println(err)
-			debug("Waiting wakeup signal")
-			<-wakeUp
-			debug("Got wakeup signal")
+			if strings.Contains(err.Error(), "no rows in result set") {
+				debug("No waiting jobs the queue")
+				debug("Waiting wakeup signal")
+				<-wakeUp
+				debug("Got wakeup signal")
+			} else {
+				fmt.Println(err)
+			}
 			continue
 		}
-		debug("Next job:", job, "Remaining:", job.Remaining())
+		remaining := job.Remaining()
+		debug("Next job:", job, "Remaining:", remaining)
 
 		now := time.Now().UTC()
 		if job.nextRun.After(now) {
 			// Wait until the next Job time or
 			// the webserver's /schedule handler wakes us up
-			debug("Sleeping for job:", job.Remaining())
+			debug("Sleeping for job:", remaining)
 			select {
-			case <-time.After(job.Remaining()):
+			case <-time.After(remaining):
 				debug("Job sleep time finished")
+				publish(job)
 			case <-wakeUp:
 				debug("Woke up by webserver")
 				continue
 			}
 		} else {
-			// It's time to publish the Job
-			job.Publish()
-			err = job.Delete()
-			if err != nil {
-				log.Println(err)
-			}
+			publish(job)
 		}
 
 	}
