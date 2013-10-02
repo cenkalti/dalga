@@ -1,7 +1,6 @@
 package main
 
 // TODO list
-// ability to run without config
 // make http server closeable
 // make dalga a type
 // seperate files
@@ -25,7 +24,7 @@ import (
 
 var (
 	debugging  = flag.Bool("d", false, "turn on debug messages")
-	configPath = flag.String("c", "dalga.ini", "config file path")
+	configPath = flag.String("c", "", "config file path")
 	cfg        *Config
 	db         *sql.DB
 	rabbit     *amqp.Connection
@@ -243,15 +242,18 @@ func publisher() {
 }
 
 func main() {
+	var err error
 	flag.Parse()
 
 	// Read config
 	cfg = NewConfig()
-	err := cfg.LoadFromFile(*configPath)
-	if err != nil {
-		log.Fatal(err)
+	if *configPath != "" {
+		err := cfg.LoadFromFile(*configPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Read config: ", cfg)
 	}
-	fmt.Println("Read config: ", cfg)
 
 	// Connect to database
 	dsn := cfg.MySQL.User + ":" + cfg.MySQL.Password + "@" + "tcp(" + cfg.MySQL.Host + ":" + cfg.MySQL.Port + ")/" + cfg.MySQL.Db + "?parseTime=true"
