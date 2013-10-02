@@ -7,7 +7,6 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/streadway/amqp"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -15,8 +14,8 @@ import (
 )
 
 var (
-	debug = flag.Bool("d", false, "turn on debug info")
-	cfg   struct {
+	debugging = flag.Bool("d", false, "turn on debug messages")
+	cfg       struct {
 		DB struct {
 			Driver string
 			Dsn    string
@@ -46,11 +45,17 @@ type Job struct {
 	state      string
 }
 
+func debug(args ...interface{}) {
+	if *debugging {
+		log.Println(args...)
+	}
+}
+
 // hadleSchedule is the web server endpoint for path: /schedule
 func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	routingKey, body, interval_s :=
 		r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
-	log.Println("/schedule", routingKey, body)
+	debug("/schedule", routingKey, body)
 
 	interval, err := strconv.ParseInt(interval_s, 10, 64)
 	if err != nil {
@@ -76,16 +81,16 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	// The code below is an idiom for non-blocking send to a channel.
 	select {
 	case wakeUp <- 1:
-		log.Println("Sent wakeup signal")
+		debug("Sent wakeup signal")
 	default:
-		log.Println("Skipped wakeup signal")
+		debug("Skipped wakeup signal")
 	}
 }
 
 // handleCancel is the web server endpoint for path: /cancel
 func handleCancel(w http.ResponseWriter, r *http.Request) {
 	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
-	log.Println("/cancel", routingKey, body)
+	debug("/cancel", routingKey, body)
 
 	_, err := db.Exec("DELETE FROM "+cfg.DB.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
@@ -122,7 +127,7 @@ func (j *Job) Delete() error {
 // Publish sends a message to exchange defined in the config and
 // updates the Job's state to RUNNING on the database.
 func (j *Job) Publish() error {
-	log.Println("publish", *j)
+	debug("publish", *j)
 
 	// Send a message to the broker
 	err := channel.Publish(cfg.RabbitMQ.Exchange, j.routingKey, false, false, amqp.Publishing{
@@ -162,12 +167,12 @@ func publisher() {
 		job, err := front()
 		if err != nil {
 			fmt.Println(err)
-			log.Println("Waiting wakeup signal")
+			debug("Waiting wakeup signal")
 			<-wakeUp
-			log.Println("Got wakeup signal")
+			debug("Got wakeup signal")
 			continue
 		}
-		log.Println("Next job:", job, "Remaining:", job.Remaining())
+		debug("Next job:", job, "Remaining:", job.Remaining())
 
 		now := time.Now().UTC()
 		if job.nextRun.After(now) {
@@ -191,11 +196,7 @@ func publisher() {
 }
 
 func main() {
-	// Setup logging
 	flag.Parse()
-	if !*debug {
-		log.SetOutput(ioutil.Discard)
-	}
 
 	// Read config
 	err := gcfg.ReadFileInto(&cfg, "dalga.ini")
