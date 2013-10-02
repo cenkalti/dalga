@@ -34,7 +34,8 @@ var (
 )
 
 func handleSchedule(w http.ResponseWriter, r *http.Request) {
-	routingKey, body, interval_s := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
+	routingKey, body, interval_s :=
+		r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
 	log.Println("/schedule", routingKey, body)
 
 	interval, err := strconv.ParseInt(interval_s, 10, 64)
