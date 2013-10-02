@@ -14,6 +14,10 @@ type Config struct {
 		Uri      string
 		Exchange string
 	}
+	HTTP struct {
+		Host string
+		Port string
+	}
 }
 
 func main() {
