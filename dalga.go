@@ -52,7 +52,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	next_run := time.Now().Add(time.Duration(interval) * time.Second)
+	next_run := time.Now().UTC().Add(time.Duration(interval) * time.Second)
 	_, err = db.Exec("INSERT IGNORE INTO "+cfg.DB.Table+" "+
 		"(routing_key, body, `interval`, next_run, state) "+
 		"VALUES(?, ?, ?, ?, 'WAITING')",
@@ -114,7 +114,7 @@ func publisher() {
 		}
 		log.Println("Next job:", job, "Remaining:", job.Remaining())
 
-		now := time.Now()
+		now := time.Now().UTC()
 		if job.nextRun.After(now) {
 			select {
 			case <-time.After(job.Remaining()):
