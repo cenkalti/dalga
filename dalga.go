@@ -18,9 +18,13 @@ var (
 	debugging = flag.Bool("d", false, "turn on debug messages")
 	cfg       struct {
 		DB struct {
-			Driver string
-			Dsn    string
-			Table  string
+			Driver   string
+			User     string
+			Password string
+			Host     string
+			Port     string
+			Db       string
+			Table    string
 		}
 		RabbitMQ struct {
 			Uri      string
@@ -213,7 +217,8 @@ func main() {
 	fmt.Println("Read config: ", cfg)
 
 	// Connect to database
-	db, err = sql.Open(cfg.DB.Driver, cfg.DB.Dsn)
+	dsn := cfg.DB.User + ":" + cfg.DB.Password + "@" + "tcp(" + cfg.DB.Host + ":" + cfg.DB.Port + ")/" + cfg.DB.Db + "?parseTime=true"
+	db, err = sql.Open(cfg.DB.Driver, dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
