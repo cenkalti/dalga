@@ -178,9 +178,12 @@ func publisher() {
 		if job.nextRun.After(now) {
 			// Wait until the next Job time or
 			// the webserver's /schedule handler wakes us up
+			debug("Sleeping for job:", job.Remaining())
 			select {
 			case <-time.After(job.Remaining()):
+				debug("Job sleep time finished")
 			case <-wakeUp:
+				debug("Woke up by webserver")
 				continue
 			}
 		} else {
