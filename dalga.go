@@ -1,8 +1,6 @@
 package main
 
 // TODO list
-// refactor rabbitmq config options
-// runqueue goroutine
 // handle mysql disconnect
 // handle rabbitmq disconnect
 
@@ -33,7 +31,11 @@ var (
 			Table    string
 		}
 		RabbitMQ struct {
-			Uri      string
+			User     string
+			Password string
+			Host     string
+			Port     string
+			VHost    string
 			Exchange string
 		}
 		HTTP struct {
@@ -234,7 +236,8 @@ func main() {
 	fmt.Println("Connected to DB")
 
 	// Connect to RabbitMQ
-	broker, err = amqp.Dial(cfg.RabbitMQ.Uri)
+	uri := "amqp://" + cfg.RabbitMQ.User + ":" + cfg.RabbitMQ.Password + "@" + cfg.RabbitMQ.Host + ":" + cfg.RabbitMQ.Port + cfg.RabbitMQ.VHost
+	broker, err = amqp.Dial(uri)
 	if err != nil {
 		log.Fatal(err)
 	}
