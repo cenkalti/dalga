@@ -132,7 +132,7 @@ func (j *Job) Publish() error {
 	debug("publish", *j)
 
 	// Update next run time
-	_, err = db.Exec("UPDATE "+cfg.MySQL.Table+" "+
+	_, err := db.Exec("UPDATE "+cfg.MySQL.Table+" "+
 		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
 		time.Now().UTC().Add(j.interval), j.routingKey, j.body)
@@ -141,7 +141,7 @@ func (j *Job) Publish() error {
 	}
 
 	// Send a message to RabbitMQ
-	err := channel.Publish(cfg.RabbitMQ.Exchange, j.routingKey, false, false, amqp.Publishing{
+	err = channel.Publish(cfg.RabbitMQ.Exchange, j.routingKey, false, false, amqp.Publishing{
 		Headers: amqp.Table{
 			"interval":     j.interval.Seconds(),
 			"published_at": time.Now().UTC().String(),
