@@ -33,6 +33,21 @@ var (
 	broker *amqp.Connection
 )
 
+type State uint
+
+const (
+	WAITING = 0
+	RUNNING = 1
+)
+
+type Job struct {
+	routingKey string
+	body       string
+	interval   uint
+	nextRun    time.Time
+	state      State
+}
+
 func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	routingKey, body, interval_s :=
 		r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
@@ -61,6 +76,59 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 		"WHERE routing_key=? AND body=?", routingKey, body)
 	if err != nil {
 		panic(err)
+	}
+}
+
+func front() (*Job, error) {
+	j := Job{}
+	row := db.QueryRow("SELECT routing_key, body, interval, next_run, state " +
+		"FROM " + cfg.DB.Table + " " +
+		"WHERE next_run = (" +
+		"SELECT MIN(next_run) FROM " + cfg.DB.Table + ")")
+	err := row.Scan(&j.routingKey, &j.body, &j.interval, &j.nextRun, &j.state)
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
+}
+
+func (j *Job) Delete() error {
+	_, err := db.Exec("DELETE FROM "+cfg.DB.Table+" "+
+		"WHERE routing_key=? AND body=?",
+		j.routingKey, j.body)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (j *Job) Publish() error {
+	return nil
+}
+
+func (j *Job) Sleep() error {
+	return nil
+}
+
+func publisher() {
+	for {
+		job, err := front()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		now := time.Now()
+		if job.nextRun.After(now) {
+			job.Sleep()
+		} else {
+			job.Publish()
+			err = job.Delete()
+			if err != nil {
+				log.Println(err)
+			}
+		}
+
 	}
 }
 
