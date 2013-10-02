@@ -140,6 +140,7 @@ func (j *Job) Publish() error {
 		Body:            []byte(j.body),
 		DeliveryMode:    amqp.Persistent,
 		Priority:        0,
+		Expiration:      strconv.FormatUint(uint64(j.interval.Seconds()), 10) + "000",
 	})
 	if err != nil {
 		return err
