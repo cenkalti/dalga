@@ -1,7 +1,6 @@
 package main
 
 // TODO list
-// take config from flag
 // ability to run without config
 // make http server closeable
 // make dalga a type
@@ -25,8 +24,9 @@ import (
 )
 
 var (
-	debugging = flag.Bool("d", false, "turn on debug messages")
-	cfg       struct {
+	debugging  = flag.Bool("d", false, "turn on debug messages")
+	configPath = flag.String("c", "dalga.ini", "config file path")
+	cfg        struct {
 		MySQL struct {
 			Driver   string
 			User     string
@@ -220,7 +220,7 @@ func main() {
 	flag.Parse()
 
 	// Read config
-	err := gcfg.ReadFileInto(&cfg, "dalga.ini")
+	err := gcfg.ReadFileInto(&cfg, *configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
