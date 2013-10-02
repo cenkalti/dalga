@@ -12,7 +12,7 @@ import (
 
 var (
 	cfg struct {
-		MySQL struct {
+		DB struct {
 			Driver string
 			Dsn    string
 			Table  string
@@ -47,8 +47,8 @@ func main() {
 	}
 	fmt.Println("Read config: ", cfg)
 
-	// Connect to MySQL
-	db, err = sql.Open(cfg.MySQL.Driver, cfg.MySQL.Dsn)
+	// Connect to database
+	db, err = sql.Open(cfg.DB.Driver, cfg.DB.Dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Connected to MySQL")
+	fmt.Println("Connected to DB")
 
 	// Connect to RabbitMQ
 	_, err = amqp.Dial(cfg.RabbitMQ.Uri)
