@@ -126,7 +126,10 @@ func (j *Job) Publish() error {
 
 	// Send a message to the broker
 	err := channel.Publish(cfg.RabbitMQ.Exchange, j.routingKey, false, false, amqp.Publishing{
-		Headers:         amqp.Table{"interval": j.interval},
+		Headers: amqp.Table{
+			"interval":     j.interval,
+			"published_at": time.Now().UTC(),
+		},
 		ContentType:     "application/octet-stream",
 		ContentEncoding: "",
 		Body:            []byte(j.body),
