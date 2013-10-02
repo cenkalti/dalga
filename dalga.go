@@ -36,6 +36,7 @@ var (
 func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	routingKey, body, interval_s := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
 	log.Println("/schedule", routingKey, body)
+
 	interval, err := strconv.ParseInt(interval_s, 10, 64)
 	if err != nil {
 		panic(err)
@@ -52,7 +53,14 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCancel(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("/cancel")
+	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
+	fmt.Println("/cancel", routingKey, body)
+
+	_, err := db.Exec("DELETE FROM "+cfg.DB.Table+" "+
+		"WHERE routing_key=? AND body=?", routingKey, body)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func main() {
@@ -84,6 +92,6 @@ func main() {
 	// Start HTTP server
 	addr := cfg.HTTP.Host + ":" + cfg.HTTP.Port
 	http.HandleFunc("/schedule", handleSchedule)
-	http.HandleFunc("/cancel", handleSchedule)
+	http.HandleFunc("/cancel", handleCancel)
 	http.ListenAndServe(addr, nil)
 }
