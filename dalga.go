@@ -31,7 +31,7 @@ var (
 
 	db     *sql.DB
 	broker *amqp.Connection
-	wakeUp chan int
+	wakeUp = make(chan int, 1)
 )
 
 type Job struct {
@@ -53,12 +53,27 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	next_run := time.Now().UTC().Add(time.Duration(interval) * time.Second)
-	_, err = db.Exec("INSERT IGNORE INTO "+cfg.DB.Table+" "+
+	_, err = db.Exec("INSERT INTO "+cfg.DB.Table+" "+
 		"(routing_key, body, `interval`, next_run, state) "+
-		"VALUES(?, ?, ?, ?, 'WAITING')",
-		routingKey, body, interval, next_run)
+		"VALUES(?, ?, ?, ?, 'WAITING') "+
+		"ON DUPLICATE KEY UPDATE `interval`=?",
+		routingKey, body, interval, next_run, interval)
 	if err != nil {
 		panic(err)
+	}
+
+	// Wake up the publisher
+	//
+	// publisher() may be sleeping for the next job on the queue
+	// at the time we schedule a new Job. Let it wake up so it can
+	// re-fetch the new Job from the front of the queue.
+	//
+	// The code below is an idiom for non-blocking send to a channel
+	select {
+	case wakeUp <- 1:
+		fmt.Println("Sent wakeup signal")
+	default:
+		fmt.Println("Skipped wakeup signal")
 	}
 }
 
@@ -110,6 +125,9 @@ func publisher() {
 		job, err := front()
 		if err != nil {
 			fmt.Println(err)
+			fmt.Println("Waiting wakeup signal")
+			<-wakeUp
+			fmt.Println("Got wakeup signal")
 			continue
 		}
 		log.Println("Next job:", job, "Remaining:", job.Remaining())
