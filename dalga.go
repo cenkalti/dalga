@@ -8,6 +8,8 @@ import (
 	"github.com/streadway/amqp"
 	"log"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 var (
@@ -32,11 +34,25 @@ var (
 )
 
 func handleSchedule(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("schedule")
+	routingKey, body, interval_s := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
+	log.Println("/schedule", routingKey, body)
+	interval, err := strconv.ParseInt(interval_s, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+
+	next_run := time.Now().Add(time.Duration(interval) * time.Second)
+	_, err = db.Exec("INSERT IGNORE INTO "+cfg.DB.Table+" "+
+		"(routing_key, body, `interval`, next_run, state) "+
+		"VALUES(?, ?, ?, ?, 'WAITING')",
+		routingKey, body, interval, next_run)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func handleCancel(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("cancel")
+	fmt.Println("/cancel")
 }
 
 func main() {
