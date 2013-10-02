@@ -53,7 +53,6 @@ type Job struct {
 	body       string
 	interval   time.Duration
 	nextRun    time.Time
-	state      string
 }
 
 func debug(args ...interface{}) {
@@ -75,8 +74,8 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 
 	next_run := time.Now().UTC().Add(time.Duration(interval) * time.Second)
 	_, err = db.Exec("INSERT INTO "+cfg.DB.Table+" "+
-		"(routing_key, body, `interval`, next_run, state) "+
-		"VALUES(?, ?, ?, ?, 'WAITING') "+
+		"(routing_key, body, `interval`, next_run) "+
+		"VALUES(?, ?, ?, ?) "+
 		"ON DUPLICATE KEY UPDATE `interval`=?",
 		routingKey, body, interval, next_run, interval)
 	if err != nil {
@@ -114,11 +113,10 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 func front() (*Job, error) {
 	var interval uint
 	j := Job{}
-	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run, state " +
+	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
 		"FROM " + cfg.DB.Table + " " +
-		"WHERE state='WAITING' " +
 		"ORDER BY next_run ASC")
-	err := row.Scan(&j.routingKey, &j.body, &interval, &j.nextRun, &j.state)
+	err := row.Scan(&j.routingKey, &j.body, &interval, &j.nextRun)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +125,7 @@ func front() (*Job, error) {
 }
 
 // Publish sends a message to exchange defined in the config and
-// updates the Job's state to RUNNING on the database.
+// updates the Job's next run time on the database.
 func (j *Job) Publish() error {
 	debug("publish", *j)
 
@@ -147,9 +145,9 @@ func (j *Job) Publish() error {
 		return err
 	}
 
-	// Update state from database
+	// Update next run time
 	_, err = db.Exec("UPDATE "+cfg.DB.Table+" "+
-		"SET state='RUNNING', next_run=? "+
+		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
 		j.CalculateNextRun(), j.routingKey, j.body)
 	if err != nil {
