@@ -1,6 +1,10 @@
 package main
 
 // TODO list
+// take config from flag
+// ability to run without config
+// make http server closeable
+// write basic integration tests
 // handle mysql disconnect
 // handle rabbitmq disconnect
 
