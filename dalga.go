@@ -48,7 +48,11 @@ func main() {
 	fmt.Println("Read config: ", cfg)
 
 	// Connect to MySQL
-	_, err = sql.Open(cfg.MySQL.Driver, cfg.MySQL.Dsn)
+	db, err = sql.Open(cfg.MySQL.Driver, cfg.MySQL.Dsn)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = db.Ping()
 	if err != nil {
 		log.Fatal(err)
 	}
