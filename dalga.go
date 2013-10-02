@@ -3,9 +3,11 @@ package main
 import (
 	"code.google.com/p/gcfg"
 	"database/sql"
+	"flag"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/streadway/amqp"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,7 +15,8 @@ import (
 )
 
 var (
-	cfg struct {
+	debug = flag.Bool("d", false, "turn on debug info")
+	cfg   struct {
 		DB struct {
 			Driver string
 			Dsn    string
@@ -71,15 +74,15 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	// The code below is an idiom for non-blocking send to a channel
 	select {
 	case wakeUp <- 1:
-		fmt.Println("Sent wakeup signal")
+		log.Println("Sent wakeup signal")
 	default:
-		fmt.Println("Skipped wakeup signal")
+		log.Println("Skipped wakeup signal")
 	}
 }
 
 func handleCancel(w http.ResponseWriter, r *http.Request) {
 	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
-	fmt.Println("/cancel", routingKey, body)
+	log.Println("/cancel", routingKey, body)
 
 	_, err := db.Exec("DELETE FROM "+cfg.DB.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
@@ -112,7 +115,7 @@ func (j *Job) Delete() error {
 }
 
 func (j *Job) Publish() error {
-	fmt.Println("publish", *j)
+	log.Println("publish", *j)
 	return nil
 }
 
@@ -125,9 +128,9 @@ func publisher() {
 		job, err := front()
 		if err != nil {
 			fmt.Println(err)
-			fmt.Println("Waiting wakeup signal")
+			log.Println("Waiting wakeup signal")
 			<-wakeUp
-			fmt.Println("Got wakeup signal")
+			log.Println("Got wakeup signal")
 			continue
 		}
 		log.Println("Next job:", job, "Remaining:", job.Remaining())
@@ -151,6 +154,12 @@ func publisher() {
 }
 
 func main() {
+	// Setup logging
+	flag.Parse()
+	if !*debug {
+		log.SetOutput(ioutil.Discard)
+	}
+
 	// Read config
 	err := gcfg.ReadFileInto(&cfg, "dalga.ini")
 	if err != nil {
