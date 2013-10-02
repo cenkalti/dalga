@@ -1,9 +1,9 @@
 package main
 
 // TODO list
-// make http server closeable
-// make dalga a type
 // seperate files
+// make dalga a type
+// make http server closeable
 // write basic integration tests
 // handle mysql disconnect
 // handle rabbitmq disconnect
