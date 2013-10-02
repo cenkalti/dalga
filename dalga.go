@@ -21,7 +21,7 @@ import (
 var (
 	debugging = flag.Bool("d", false, "turn on debug messages")
 	cfg       struct {
-		DB struct {
+		MySQL struct {
 			Driver   string
 			User     string
 			Password string
@@ -45,7 +45,7 @@ var (
 	}
 
 	db      *sql.DB
-	broker  *amqp.Connection
+	rabbit  *amqp.Connection
 	channel *amqp.Channel
 	wakeUp  = make(chan int, 1)
 )
@@ -75,7 +75,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	next_run := time.Now().UTC().Add(time.Duration(interval) * time.Second)
-	_, err = db.Exec("INSERT INTO "+cfg.DB.Table+" "+
+	_, err = db.Exec("INSERT INTO "+cfg.MySQL.Table+" "+
 		"(routing_key, body, `interval`, next_run) "+
 		"VALUES(?, ?, ?, ?) "+
 		"ON DUPLICATE KEY UPDATE `interval`=?",
@@ -104,7 +104,7 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
 	debug("/cancel", routingKey, body)
 
-	_, err := db.Exec("DELETE FROM "+cfg.DB.Table+" "+
+	_, err := db.Exec("DELETE FROM "+cfg.MySQL.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
 	if err != nil {
 		panic(err)
@@ -116,7 +116,7 @@ func front() (*Job, error) {
 	var interval uint
 	j := Job{}
 	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
-		"FROM " + cfg.DB.Table + " " +
+		"FROM " + cfg.MySQL.Table + " " +
 		"ORDER BY next_run ASC")
 	err := row.Scan(&j.routingKey, &j.body, &interval, &j.nextRun)
 	if err != nil {
@@ -131,7 +131,7 @@ func front() (*Job, error) {
 func (j *Job) Publish() error {
 	debug("publish", *j)
 
-	// Send a message to the broker
+	// Send a message to RabbitMQ
 	err := channel.Publish(cfg.RabbitMQ.Exchange, j.routingKey, false, false, amqp.Publishing{
 		Headers: amqp.Table{
 			"interval":     j.interval.Seconds(),
@@ -149,7 +149,7 @@ func (j *Job) Publish() error {
 	}
 
 	// Update next run time
-	_, err = db.Exec("UPDATE "+cfg.DB.Table+" "+
+	_, err = db.Exec("UPDATE "+cfg.MySQL.Table+" "+
 		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
 		j.CalculateNextRun(), j.routingKey, j.body)
@@ -224,8 +224,8 @@ func main() {
 	fmt.Println("Read config: ", cfg)
 
 	// Connect to database
-	dsn := cfg.DB.User + ":" + cfg.DB.Password + "@" + "tcp(" + cfg.DB.Host + ":" + cfg.DB.Port + ")/" + cfg.DB.Db + "?parseTime=true"
-	db, err = sql.Open(cfg.DB.Driver, dsn)
+	dsn := cfg.MySQL.User + ":" + cfg.MySQL.Password + "@" + "tcp(" + cfg.MySQL.Host + ":" + cfg.MySQL.Port + ")/" + cfg.MySQL.Db + "?parseTime=true"
+	db, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -233,15 +233,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Connected to DB")
+	fmt.Println("Connected to MySQL")
 
 	// Connect to RabbitMQ
 	uri := "amqp://" + cfg.RabbitMQ.User + ":" + cfg.RabbitMQ.Password + "@" + cfg.RabbitMQ.Host + ":" + cfg.RabbitMQ.Port + cfg.RabbitMQ.VHost
-	broker, err = amqp.Dial(uri)
+	rabbit, err = amqp.Dial(uri)
 	if err != nil {
 		log.Fatal(err)
 	}
-	channel, err = broker.Channel()
+	channel, err = rabbit.Channel()
 	if err != nil {
 		log.Fatal(err)
 	}
