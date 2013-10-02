@@ -31,13 +31,7 @@ var (
 
 	db     *sql.DB
 	broker *amqp.Connection
-)
-
-type State uint
-
-const (
-	WAITING = 0
-	RUNNING = 1
+	wakeUp chan int
 )
 
 type Job struct {
@@ -45,7 +39,7 @@ type Job struct {
 	body       string
 	interval   uint
 	nextRun    time.Time
-	state      State
+	state      string
 }
 
 func handleSchedule(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +75,7 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 
 func front() (*Job, error) {
 	j := Job{}
-	row := db.QueryRow("SELECT routing_key, body, interval, next_run, state " +
+	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run, state " +
 		"FROM " + cfg.DB.Table + " " +
 		"WHERE next_run = (" +
 		"SELECT MIN(next_run) FROM " + cfg.DB.Table + ")")
@@ -103,11 +97,12 @@ func (j *Job) Delete() error {
 }
 
 func (j *Job) Publish() error {
+	fmt.Println("publish", *j)
 	return nil
 }
 
-func (j *Job) Sleep() error {
-	return nil
+func (j *Job) Remaining() time.Duration {
+	return -time.Since(j.nextRun)
 }
 
 func publisher() {
@@ -117,10 +112,15 @@ func publisher() {
 			fmt.Println(err)
 			continue
 		}
+		log.Println("Next job:", job, "Remaining:", job.Remaining())
 
 		now := time.Now()
 		if job.nextRun.After(now) {
-			job.Sleep()
+			select {
+			case <-time.After(job.Remaining()):
+			case <-wakeUp:
+				continue
+			}
 		} else {
 			job.Publish()
 			err = job.Delete()
