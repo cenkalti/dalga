@@ -158,6 +158,9 @@ func main() {
 	}
 	fmt.Println("Connected to RabbitMQ")
 
+	// Run publisher
+	go publisher()
+
 	// Start HTTP server
 	addr := cfg.HTTP.Host + ":" + cfg.HTTP.Port
 	http.HandleFunc("/schedule", handleSchedule)
