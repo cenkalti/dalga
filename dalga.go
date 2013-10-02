@@ -1,5 +1,11 @@
 package main
 
+// TODO list
+// refactor rabbitmq config options
+// runqueue goroutine
+// handle mysql disconnect
+// handle rabbitmq disconnect
+
 import (
 	"code.google.com/p/gcfg"
 	"database/sql"
