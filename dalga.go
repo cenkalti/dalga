@@ -32,19 +32,21 @@ var (
 		}
 	}
 
-	db     *sql.DB
-	broker *amqp.Connection
-	wakeUp = make(chan int, 1)
+	db      *sql.DB
+	broker  *amqp.Connection
+	channel *amqp.Channel
+	wakeUp  = make(chan int, 1)
 )
 
 type Job struct {
 	routingKey string
 	body       string
-	interval   uint
+	interval   uint // Seconds
 	nextRun    time.Time
 	state      string
 }
 
+// hadleSchedule is the web server endpoint for path: /schedule
 func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	routingKey, body, interval_s :=
 		r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
@@ -65,13 +67,13 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	// Wake up the publisher
+	// Wake up the publisher.
 	//
 	// publisher() may be sleeping for the next job on the queue
 	// at the time we schedule a new Job. Let it wake up so it can
 	// re-fetch the new Job from the front of the queue.
 	//
-	// The code below is an idiom for non-blocking send to a channel
+	// The code below is an idiom for non-blocking send to a channel.
 	select {
 	case wakeUp <- 1:
 		log.Println("Sent wakeup signal")
@@ -80,6 +82,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleCancel is the web server endpoint for path: /cancel
 func handleCancel(w http.ResponseWriter, r *http.Request) {
 	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
 	log.Println("/cancel", routingKey, body)
@@ -91,6 +94,7 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// front returns the first job to be run in the queue.
 func front() (*Job, error) {
 	j := Job{}
 	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run, state " +
@@ -104,6 +108,7 @@ func front() (*Job, error) {
 	return &j, nil
 }
 
+// Delete deletes the Job j from the queue.
 func (j *Job) Delete() error {
 	_, err := db.Exec("DELETE FROM "+cfg.DB.Table+" "+
 		"WHERE routing_key=? AND body=?",
@@ -114,15 +119,41 @@ func (j *Job) Delete() error {
 	return nil
 }
 
+// Publish sends a message to exchange defined in the config and
+// updates the Job's state to RUNNING on the database.
 func (j *Job) Publish() error {
 	log.Println("publish", *j)
+
+	// Send a message to the broker
+	err := channel.Publish(cfg.RabbitMQ.Exchange, j.routingKey, false, false, amqp.Publishing{
+		Headers:         amqp.Table{"interval": j.interval},
+		ContentType:     "application/octet-stream",
+		ContentEncoding: "",
+		Body:            []byte(j.body),
+		DeliveryMode:    amqp.Persistent,
+		Priority:        0,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Update state from database
+	_, err = db.Exec("UPDATE "+cfg.DB.Table+" "+
+		"SET state=RUNNING "+
+		"WHERE routing_key=? AND body=?",
+		j.routingKey, j.body)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
+// Remaining returns the duration until the job's next scheduled time.
 func (j *Job) Remaining() time.Duration {
 	return -time.Since(j.nextRun)
 }
 
+// publisher runs a loop that reads the next Job from the queue and publishes it.
 func publisher() {
 	for {
 		job, err := front()
@@ -145,6 +176,7 @@ func publisher() {
 				continue
 			}
 		} else {
+			// It's time to publish the Job
 			job.Publish()
 			err = job.Delete()
 			if err != nil {
@@ -181,7 +213,11 @@ func main() {
 	fmt.Println("Connected to DB")
 
 	// Connect to RabbitMQ
-	_, err = amqp.Dial(cfg.RabbitMQ.Uri)
+	broker, err = amqp.Dial(cfg.RabbitMQ.Uri)
+	if err != nil {
+		log.Fatal(err)
+	}
+	channel, err = broker.Channel()
 	if err != nil {
 		log.Fatal(err)
 	}
