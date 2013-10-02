@@ -137,6 +137,8 @@ func publisher() {
 
 		now := time.Now().UTC()
 		if job.nextRun.After(now) {
+			// Wait until the next Job time or
+			// the webserver's /schedule handler wakes us up
 			select {
 			case <-time.After(job.Remaining()):
 			case <-wakeUp:
