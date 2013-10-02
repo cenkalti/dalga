@@ -152,7 +152,7 @@ func (j *Job) Publish() error {
 	_, err = db.Exec("UPDATE "+cfg.MySQL.Table+" "+
 		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
-		j.CalculateNextRun(), j.routingKey, j.body)
+		time.Now().UTC().Add(j.interval), j.routingKey, j.body)
 	if err != nil {
 		return err
 	}
@@ -162,10 +162,6 @@ func (j *Job) Publish() error {
 // Remaining returns the duration until the job's next scheduled time.
 func (j *Job) Remaining() time.Duration {
 	return -time.Since(j.nextRun)
-}
-
-func (j *Job) CalculateNextRun() time.Time {
-	return j.nextRun.Add(j.interval)
 }
 
 // publisher runs a loop that reads the next Job from the queue and publishes it.
