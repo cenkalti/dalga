@@ -148,7 +148,7 @@ func front() (*Job, error) {
 	j := Job{}
 	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
 		"FROM " + cfg.MySQL.Table + " " +
-		"ORDER BY next_run ASC")
+		"ORDER BY next_run ASC LIMIT 1")
 	err := row.Scan(&j.RoutingKey, &j.Body, &interval, &j.NextRun)
 	if err != nil {
 		return nil, err
