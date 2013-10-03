@@ -1,6 +1,8 @@
 package main
 
 // TODO list
+// Optimize wake up
+// Idempotent schedule call
 // seperate files
 // make dalga a type
 // make http server closeable
