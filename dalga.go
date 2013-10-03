@@ -29,7 +29,7 @@ var (
 	db           *sql.DB
 	rabbit       *amqp.Connection
 	channel      *amqp.Channel
-	jewJobs      = make(chan *Job)
+	newJobs      = make(chan *Job)
 	canceledJobs = make(chan *Job)
 )
 
@@ -117,7 +117,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	//
 	// The code below is an idiom for non-blocking send to a channel.
 	select {
-	case jewJobs <- job:
+	case newJobs <- job:
 		debug("Sent new job signal")
 	default:
 		debug("Did not send new job signal")
@@ -246,7 +246,7 @@ func publisher() {
 		job, err := front()
 		if err != nil {
 			if strings.Contains(err.Error(), "no rows in result set") {
-				debug("No waiting jobs the queue")
+				debug("No waiting jobs in the queue")
 				debug("Waiting wakeup signal")
 				<-jewJobs
 				debug("Got wakeup signal")
@@ -269,7 +269,7 @@ func publisher() {
 			case <-time.After(remaining):
 				debug("Job sleep time finished")
 				publish(job)
-			case newJob := <-jewJobs:
+			case newJob := <-newJobs:
 				debug("A new job has been scheduled")
 				if newJob.NextRun.Before(job.NextRun) {
 					debug("The new job comes before out current job")
