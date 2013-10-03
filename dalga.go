@@ -1,7 +1,6 @@
 package main
 
 // TODO list
-// Optimize wake up
 // Idempotent schedule call
 // seperate files
 // make dalga a type
@@ -25,13 +24,14 @@ import (
 )
 
 var (
-	debugging  = flag.Bool("d", false, "turn on debug messages")
-	configPath = flag.String("c", "", "config file path")
-	cfg        *Config
-	db         *sql.DB
-	rabbit     *amqp.Connection
-	channel    *amqp.Channel
-	jewJobs    = make(chan *Job)
+	debugging    = flag.Bool("d", false, "turn on debug messages")
+	configPath   = flag.String("c", "", "config file path")
+	cfg          *Config
+	db           *sql.DB
+	rabbit       *amqp.Connection
+	channel      *amqp.Channel
+	jewJobs      = make(chan *Job)
+	canceledJobs = make(chan *Job)
 )
 
 type Config struct {
@@ -120,9 +120,9 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	// The code below is an idiom for non-blocking send to a channel.
 	select {
 	case jewJobs <- job:
-		debug("Sent wakeup signal")
+		debug("Sent new job signal")
 	default:
-		debug("Skipped wakeup signal")
+		debug("Did not send new job signal")
 	}
 }
 
@@ -134,6 +134,13 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 	err := CancelJob(routingKey, body)
 	if err != nil {
 		panic(err)
+	}
+
+	select {
+	case canceledJobs <- &Job{RoutingKey: routingKey, Body: body}:
+		debug("Sent cancel signal")
+	default:
+		debug("Did not send cancel signal")
 	}
 }
 
@@ -234,6 +241,8 @@ func publisher() {
 	}
 
 	for {
+		debug("")
+
 		job, err := front()
 		if err != nil {
 			if strings.Contains(err.Error(), "no rows in result set") {
@@ -246,6 +255,8 @@ func publisher() {
 			}
 			continue
 		}
+
+	CheckNextRun:
 		remaining := job.Remaining()
 		debug("Next job:", job, "Remaining:", remaining)
 
@@ -259,11 +270,23 @@ func publisher() {
 				debug("Job sleep time finished")
 				publish(job)
 			case newJob := <-jewJobs:
-				debug("Woke up by webserver")
+				debug("A new job has been scheduled")
 				if newJob.NextRun.Before(job.NextRun) {
+					debug("The new job comes before out current job")
+					job = newJob // Process the new job next
+				}
+				// Continue processing the current job without fetching from database
+				goto CheckNextRun
+			case canceledJob := <-canceledJobs:
+				debug("A job has been cancelled")
+				if (job.RoutingKey == canceledJob.RoutingKey) && (job.Body == canceledJob.Body) {
+					// The job we are waiting for has been canceled.
+					// We need to fetch the next job in the queue.
+					debug("The cancelled job is our current job")
 					continue
 				}
-				continue
+				// Continue to process our current job
+				goto CheckNextRun
 			}
 		} else {
 			publish(job)
