@@ -1,7 +1,6 @@
 package dalga
 
 // TODO list
-// make http server closeable
 // write basic integration tests
 // handle mysql disconnect
 // handle rabbitmq disconnect
