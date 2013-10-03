@@ -13,7 +13,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/streadway/amqp"
 	"log"
-	"net/http"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -32,8 +32,10 @@ type Dalga struct {
 	db           *sql.DB
 	rabbit       *amqp.Connection
 	channel      *amqp.Channel
+	listener     net.Listener
 	newJobs      chan *Job
 	canceledJobs chan *Job
+	quit         chan bool
 }
 
 func NewDalga(config *Config) *Dalga {
@@ -41,6 +43,7 @@ func NewDalga(config *Config) *Dalga {
 		C:            config,
 		newJobs:      make(chan *Job),
 		canceledJobs: make(chan *Job),
+		quit:         make(chan bool, 1),
 	}
 }
 
@@ -55,16 +58,22 @@ func (d *Dalga) Run() error {
 		return err
 	}
 
-	// Run publisher
+	s, err := d.makeServer()
+	if err != nil {
+		return err
+	}
+
 	go d.publisher()
+	go s()
 
-	// Start HTTP server
-	addr := d.C.HTTP.Host + ":" + d.C.HTTP.Port
-	http.HandleFunc("/schedule", d.makeHandler(handleSchedule))
-	http.HandleFunc("/cancel", d.makeHandler(handleCancel))
-	http.ListenAndServe(addr, nil)
-
+	debug("Waiting a message from quit channel")
+	<-d.quit
+	debug("Got quit message")
 	return nil
+}
+
+func (d *Dalga) Shutdown() error {
+	return d.listener.Close()
 }
 
 func (d *Dalga) connectDB() error {

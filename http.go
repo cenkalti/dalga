@@ -1,9 +1,30 @@
 package dalga
 
 import (
+	"net"
 	"net/http"
 	"strconv"
 )
+
+func (d *Dalga) makeServer() (func(), error) {
+	var err error
+	addr := d.C.HTTP.Host + ":" + d.C.HTTP.Port
+	d.listener, err = net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	handler := http.NewServeMux()
+	handler.HandleFunc("/schedule", d.makeHandler(handleSchedule))
+	handler.HandleFunc("/cancel", d.makeHandler(handleCancel))
+
+	return func() {
+		http.Serve(d.listener, handler)
+		debug("HTTP server is done")
+		d.quit <- true
+		debug("Sent quit message")
+	}, nil
+}
 
 func (dalga *Dalga) makeHandler(fn func(http.ResponseWriter, *http.Request, *Dalga)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
