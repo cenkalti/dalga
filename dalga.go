@@ -320,6 +320,5 @@ func (d *Dalga) publisher() {
 		} else {
 			publish(job)
 		}
-
 	}
 }
