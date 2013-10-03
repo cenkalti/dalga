@@ -31,7 +31,7 @@ var (
 	db         *sql.DB
 	rabbit     *amqp.Connection
 	channel    *amqp.Channel
-	wakeUp     = make(chan *Job)
+	jewJobs    = make(chan *Job)
 )
 
 type Config struct {
@@ -119,7 +119,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	//
 	// The code below is an idiom for non-blocking send to a channel.
 	select {
-	case wakeUp <- job:
+	case jewJobs <- job:
 		debug("Sent wakeup signal")
 	default:
 		debug("Skipped wakeup signal")
@@ -239,7 +239,7 @@ func publisher() {
 			if strings.Contains(err.Error(), "no rows in result set") {
 				debug("No waiting jobs the queue")
 				debug("Waiting wakeup signal")
-				<-wakeUp
+				<-jewJobs
 				debug("Got wakeup signal")
 			} else {
 				fmt.Println(err)
@@ -258,7 +258,7 @@ func publisher() {
 			case <-time.After(remaining):
 				debug("Job sleep time finished")
 				publish(job)
-			case newJob := <-wakeUp:
+			case newJob := <-jewJobs:
 				debug("Woke up by webserver")
 				if newJob.NextRun.Before(job.NextRun) {
 					continue
