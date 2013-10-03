@@ -21,7 +21,7 @@ func (d *Dalga) makeServer() (func(), error) {
 	return func() {
 		http.Serve(d.listener, handler)
 		debug("HTTP server is done")
-		d.quit <- true
+		d.quitPublisher <- true
 		debug("Sent quit message")
 	}, nil
 }

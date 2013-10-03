@@ -38,61 +38,59 @@ func debug(args ...interface{}) {
 }
 
 type Dalga struct {
-	C            *Config
-	db           *sql.DB
-	rabbit       *amqp.Connection
-	channel      *amqp.Channel
-	listener     net.Listener
-	newJobs      chan *Job
-	canceledJobs chan *Job
-	quit         chan bool
+	C                 *Config
+	db                *sql.DB
+	rabbit            *amqp.Connection
+	channel           *amqp.Channel
+	listener          net.Listener
+	newJobs           chan *Job
+	canceledJobs      chan *Job
+	quitPublisher     chan bool
+	publisherFinished chan bool
 }
 
 func NewDalga(config *Config) *Dalga {
 	return &Dalga{
-		C:            config,
-		newJobs:      make(chan *Job),
-		canceledJobs: make(chan *Job),
-		quit:         make(chan bool, 1),
+		C:                 config,
+		newJobs:           make(chan *Job),
+		canceledJobs:      make(chan *Job),
+		quitPublisher:     make(chan bool),
+		publisherFinished: make(chan bool),
 	}
 }
 
 // Start starts the publisher and http server goroutines.
-func (d *Dalga) Start() (chan bool, error) {
+func (d *Dalga) Start() error {
 	err := d.connectDB()
-	if err != nil {
-		return nil, err
-	}
-
-	err = d.connectMQ()
-	if err != nil {
-		return nil, err
-	}
-
-	server, err := d.makeServer()
-	if err != nil {
-		return nil, err
-	}
-
-	go d.publisher()
-	go server()
-
-	ch := make(chan bool, 1)
-	ch <- true
-
-	return ch, nil
-}
-
-// Run starts the dalga and waits until Shutdown() is called.
-func (d *Dalga) Run() error {
-	_, err := d.Start()
 	if err != nil {
 		return err
 	}
 
-	debug("Waiting a message from quit channel")
-	<-d.quit
-	debug("Got quit message")
+	err = d.connectMQ()
+	if err != nil {
+		return err
+	}
+
+	server, err := d.makeServer()
+	if err != nil {
+		return err
+	}
+
+	go d.publisher()
+	go server()
+	return nil
+}
+
+// Run starts the dalga and waits until Shutdown() is called.
+func (d *Dalga) Run() error {
+	err := d.Start()
+	if err != nil {
+		return err
+	}
+
+	debug("Waiting a message from publisherFinished channel")
+	<-d.publisherFinished
+	debug("Received message from publisherFinished channel")
 	return nil
 }
 
@@ -222,7 +220,7 @@ func (d *Dalga) publish(j *Job) error {
 	}
 
 	// Send a message to RabbitMQ
-	err = d.channel.Publish(d.C.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
+	go d.channel.Publish(d.C.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
 		Headers: amqp.Table{
 			"interval":     j.Interval.Seconds(),
 			"published_at": time.Now().UTC().String(),
@@ -233,9 +231,6 @@ func (d *Dalga) publish(j *Job) error {
 		Priority:     0,
 		Expiration:   strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
 	})
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -270,14 +265,27 @@ func (d *Dalga) publisher() {
 	}
 
 	for {
-		debug("")
+		debug("---")
+
+		select {
+		case <-d.quitPublisher:
+			debug("Came message from channel 1: quitPublisher")
+			goto end
+		default:
+		}
 
 		job, err := d.front()
 		if err != nil {
 			if strings.Contains(err.Error(), "no rows in result set") {
 				debug("No waiting jobs in the queue")
 				debug("Waiting wakeup signal")
-				job = <-d.newJobs
+				select {
+				case job = <-d.newJobs:
+				case <-d.quitPublisher:
+					debug("Came message from channel 2: quitPublisher")
+					goto end
+				}
+
 				debug("Got wakeup signal")
 			} else {
 				fmt.Println(err)
@@ -316,9 +324,14 @@ func (d *Dalga) publisher() {
 				}
 				// Continue to process our current job
 				goto CheckNextRun
+			case <-d.quitPublisher:
+				debug("Came message from channel 3: quitPublisher")
+				goto end
 			}
 		} else {
 			publish(job)
 		}
 	}
+end:
+	d.publisherFinished <- true
 }
