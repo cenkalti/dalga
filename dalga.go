@@ -1,6 +1,8 @@
 package dalga
 
 // TODO list
+// use bytes
+// option for creating table
 // write basic integration tests
 // handle mysql disconnect
 // handle rabbitmq disconnect
