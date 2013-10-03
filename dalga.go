@@ -248,12 +248,12 @@ func publisher() {
 			if strings.Contains(err.Error(), "no rows in result set") {
 				debug("No waiting jobs in the queue")
 				debug("Waiting wakeup signal")
-				<-jewJobs
+				job = <-newJobs
 				debug("Got wakeup signal")
 			} else {
 				fmt.Println(err)
+				continue
 			}
-			continue
 		}
 
 	CheckNextRun:
