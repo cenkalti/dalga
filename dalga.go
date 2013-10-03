@@ -2,7 +2,6 @@ package main
 
 // TODO list
 // seperate files
-// make dalga a type
 // make http server closeable
 // write basic integration tests
 // handle mysql disconnect
@@ -23,15 +22,26 @@ import (
 )
 
 var (
-	debugging    = flag.Bool("d", false, "turn on debug messages")
-	configPath   = flag.String("c", "", "config file path")
+	debugging  = flag.Bool("d", false, "turn on debug messages")
+	configPath = flag.String("c", "", "config file path")
+)
+
+type Dalga struct {
 	cfg          *Config
 	db           *sql.DB
 	rabbit       *amqp.Connection
 	channel      *amqp.Channel
-	newJobs      = make(chan *Job)
-	canceledJobs = make(chan *Job)
-)
+	newJobs      chan *Job
+	canceledJobs chan *Job
+}
+
+func NewDalga(config *Config) *Dalga {
+	return &Dalga{
+		cfg:          config,
+		newJobs:      make(chan *Job),
+		canceledJobs: make(chan *Job),
+	}
+}
 
 type Config struct {
 	MySQL struct {
@@ -87,8 +97,14 @@ func debug(args ...interface{}) {
 	}
 }
 
+func (dalga *Dalga) makeHandler(fn func(http.ResponseWriter, *http.Request, *Dalga)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fn(w, r, dalga)
+	}
+}
+
 // hadleSchedule is the web server endpoint for path: /schedule
-func handleSchedule(w http.ResponseWriter, r *http.Request) {
+func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
 	routingKey, body, intervalString := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
 	debug("/schedule", routingKey, body)
 
@@ -104,7 +120,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	job := NewJob(routingKey, body, uint32(intervalUint64))
-	err = job.Enter()
+	err = job.Enter(d)
 	if err != nil {
 		panic(err)
 	}
@@ -117,7 +133,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	//
 	// The code below is an idiom for non-blocking send to a channel.
 	select {
-	case newJobs <- job:
+	case d.newJobs <- job:
 		debug("Sent new job signal")
 	default:
 		debug("Did not send new job signal")
@@ -125,17 +141,17 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCancel is the web server endpoint for path: /cancel
-func handleCancel(w http.ResponseWriter, r *http.Request) {
+func handleCancel(w http.ResponseWriter, r *http.Request, d *Dalga) {
 	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
 	debug("/cancel", routingKey, body)
 
-	err := CancelJob(routingKey, body)
+	err := CancelJob(routingKey, body, d)
 	if err != nil {
 		panic(err)
 	}
 
 	select {
-	case canceledJobs <- &Job{RoutingKey: routingKey, Body: body}:
+	case d.canceledJobs <- &Job{RoutingKey: routingKey, Body: body}:
 		debug("Sent cancel signal")
 	default:
 		debug("Did not send cancel signal")
@@ -143,11 +159,11 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 }
 
 // front returns the first job to be run in the queue.
-func front() (*Job, error) {
+func (d *Dalga) front() (*Job, error) {
 	var interval uint
 	j := Job{}
-	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
-		"FROM " + cfg.MySQL.Table + " " +
+	row := d.db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
+		"FROM " + d.cfg.MySQL.Table + " " +
 		"ORDER BY next_run ASC LIMIT 1")
 	err := row.Scan(&j.RoutingKey, &j.Body, &interval, &j.NextRun)
 	if err != nil {
@@ -159,11 +175,11 @@ func front() (*Job, error) {
 
 // Publish sends a message to exchange defined in the config and
 // updates the Job's next run time on the database.
-func (j *Job) Publish() error {
+func (j *Job) Publish(d *Dalga) error {
 	debug("publish", *j)
 
 	// Update next run time
-	_, err := db.Exec("UPDATE "+cfg.MySQL.Table+" "+
+	_, err := d.db.Exec("UPDATE "+d.cfg.MySQL.Table+" "+
 		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
 		time.Now().UTC().Add(j.Interval), j.RoutingKey, j.Body)
@@ -172,7 +188,7 @@ func (j *Job) Publish() error {
 	}
 
 	// Send a message to RabbitMQ
-	err = channel.Publish(cfg.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
+	err = d.channel.Publish(d.cfg.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
 		Headers: amqp.Table{
 			"interval":     j.Interval.Seconds(),
 			"published_at": time.Now().UTC().String(),
@@ -212,9 +228,9 @@ func (j *Job) SetNewNextRun() {
 }
 
 // Enter puts the job to the waiting queue.
-func (j *Job) Enter() error {
+func (j *Job) Enter(d *Dalga) error {
 	interval := j.Interval.Seconds()
-	_, err := db.Exec("INSERT INTO "+cfg.MySQL.Table+" "+
+	_, err := d.db.Exec("INSERT INTO "+d.cfg.MySQL.Table+" "+
 		"(routing_key, body, `interval`, next_run) "+
 		"VALUES(?, ?, ?, ?) "+
 		"ON DUPLICATE KEY UPDATE "+
@@ -225,16 +241,16 @@ func (j *Job) Enter() error {
 }
 
 // Cancel removes the job from the waiting queue.
-func CancelJob(routingKey, body string) error {
-	_, err := db.Exec("DELETE FROM "+cfg.MySQL.Table+" "+
+func CancelJob(routingKey, body string, d *Dalga) error {
+	_, err := d.db.Exec("DELETE FROM "+d.cfg.MySQL.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
 	return err
 }
 
 // publisher runs a loop that reads the next Job from the queue and publishes it.
-func publisher() {
+func (d *Dalga) publisher() {
 	publish := func(j *Job) {
-		err := j.Publish()
+		err := j.Publish(d)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -243,12 +259,12 @@ func publisher() {
 	for {
 		debug("")
 
-		job, err := front()
+		job, err := d.front()
 		if err != nil {
 			if strings.Contains(err.Error(), "no rows in result set") {
 				debug("No waiting jobs in the queue")
 				debug("Waiting wakeup signal")
-				job = <-newJobs
+				job = <-d.newJobs
 				debug("Got wakeup signal")
 			} else {
 				fmt.Println(err)
@@ -269,7 +285,7 @@ func publisher() {
 			case <-time.After(remaining):
 				debug("Job sleep time finished")
 				publish(job)
-			case newJob := <-newJobs:
+			case newJob := <-d.newJobs:
 				debug("A new job has been scheduled")
 				if newJob.NextRun.Before(job.NextRun) {
 					debug("The new job comes before out current job")
@@ -277,7 +293,7 @@ func publisher() {
 				}
 				// Continue processing the current job without fetching from database
 				goto CheckNextRun
-			case canceledJob := <-canceledJobs:
+			case canceledJob := <-d.canceledJobs:
 				debug("A job has been cancelled")
 				if (job.RoutingKey == canceledJob.RoutingKey) && (job.Body == canceledJob.Body) {
 					// The job we are waiting for has been canceled.
@@ -300,7 +316,7 @@ func main() {
 	flag.Parse()
 
 	// Read config
-	cfg = NewConfig()
+	cfg := NewConfig()
 	if *configPath != "" {
 		err = gcfg.ReadFileInto(cfg, *configPath)
 		if err != nil {
@@ -309,36 +325,41 @@ func main() {
 		fmt.Println("Read config: ", cfg)
 	}
 
+	// Create new Dalga instance
+	dalga := NewDalga(cfg)
+
 	// Connect to database
-	dsn := cfg.MySQL.User + ":" + cfg.MySQL.Password + "@" + "tcp(" + cfg.MySQL.Host + ":" + cfg.MySQL.Port + ")/" + cfg.MySQL.Db + "?parseTime=true"
-	db, err = sql.Open("mysql", dsn)
+	mysql := dalga.cfg.MySQL
+	dsn := mysql.User + ":" + mysql.Password + "@" + "tcp(" + mysql.Host + ":" + mysql.Port + ")/" + mysql.Db + "?parseTime=true"
+	dalga.db, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = db.Ping()
+	err = dalga.db.Ping()
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("Connected to MySQL")
 
 	// Connect to RabbitMQ
-	uri := "amqp://" + cfg.RabbitMQ.User + ":" + cfg.RabbitMQ.Password + "@" + cfg.RabbitMQ.Host + ":" + cfg.RabbitMQ.Port + cfg.RabbitMQ.VHost
-	rabbit, err = amqp.Dial(uri)
+	rabbit := dalga.cfg.RabbitMQ
+	uri := "amqp://" + rabbit.User + ":" + rabbit.Password + "@" + rabbit.Host + ":" + rabbit.Port + rabbit.VHost
+	dalga.rabbit, err = amqp.Dial(uri)
 	if err != nil {
 		log.Fatal(err)
 	}
-	channel, err = rabbit.Channel()
+	dalga.channel, err = dalga.rabbit.Channel()
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("Connected to RabbitMQ")
 
 	// Run publisher
-	go publisher()
+	go dalga.publisher()
 
 	// Start HTTP server
 	addr := cfg.HTTP.Host + ":" + cfg.HTTP.Port
-	http.HandleFunc("/schedule", handleSchedule)
-	http.HandleFunc("/cancel", handleCancel)
+	http.HandleFunc("/schedule", dalga.makeHandler(handleSchedule))
+	http.HandleFunc("/cancel", dalga.makeHandler(handleCancel))
 	http.ListenAndServe(addr, nil)
 }
