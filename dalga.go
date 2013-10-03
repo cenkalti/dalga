@@ -137,6 +137,47 @@ func (d *Dalga) CreateTable() error {
 	return nil
 }
 
+func (d *Dalga) Schedule(routingKey string, body []byte, interval uint32) error {
+	job := NewJob(routingKey, body, interval)
+
+	err := d.enter(job)
+	if err != nil {
+		return err
+	}
+
+	// Wake up the publisher.
+	//
+	// publisher() may be sleeping for the next job on the queue
+	// at the time we schedule a new Job. Let it wake up so it can
+	// re-fetch the new Job from the front of the queue.
+	//
+	// The code below is an idiom for non-blocking send to a channel.
+	select {
+	case d.newJobs <- job:
+		debug("Sent new job signal")
+	default:
+		debug("Did not send new job signal")
+	}
+
+	return nil
+}
+
+func (d *Dalga) Cancel(routingKey string, body []byte) error {
+	err := d.cancel(routingKey, body)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case d.canceledJobs <- &Job{RoutingKey: routingKey, Body: body}:
+		debug("Sent cancel signal")
+	default:
+		debug("Did not send cancel signal")
+	}
+
+	return nil
+}
+
 // front returns the first job to be run in the queue.
 func (d *Dalga) front() (*Job, error) {
 	var interval uint
