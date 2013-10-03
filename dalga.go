@@ -147,7 +147,7 @@ func (d *Dalga) CreateTable() error {
 func (d *Dalga) Schedule(routingKey string, body []byte, interval uint32) error {
 	job := NewJob(routingKey, body, interval)
 
-	err := d.enter(job)
+	err := d.insert(job)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (d *Dalga) Schedule(routingKey string, body []byte, interval uint32) error 
 }
 
 func (d *Dalga) Cancel(routingKey string, body []byte) error {
-	err := d.cancel(routingKey, body)
+	err := d.delete(routingKey, body)
 	if err != nil {
 		return err
 	}
@@ -244,8 +244,8 @@ func (d *Dalga) publish(j *Job) error {
 	return nil
 }
 
-// enter puts the job to the waiting queue.
-func (d *Dalga) enter(j *Job) error {
+// insert puts the job to the waiting queue.
+func (d *Dalga) insert(j *Job) error {
 	interval := j.Interval.Seconds()
 	_, err := d.db.Exec("INSERT INTO "+d.C.MySQL.Table+" "+
 		"(routing_key, body, `interval`, next_run) "+
@@ -257,8 +257,8 @@ func (d *Dalga) enter(j *Job) error {
 	return err
 }
 
-// cancel removes the job from the waiting queue.
-func (d *Dalga) cancel(routingKey string, body []byte) error {
+// delete removes the job from the waiting queue.
+func (d *Dalga) delete(routingKey string, body []byte) error {
 	_, err := d.db.Exec("DELETE FROM "+d.C.MySQL.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
 	return err
