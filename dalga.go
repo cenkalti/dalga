@@ -90,22 +90,21 @@ func debug(args ...interface{}) {
 
 // hadleSchedule is the web server endpoint for path: /schedule
 func handleSchedule(w http.ResponseWriter, r *http.Request) {
-	routingKey, body, interval_s :=
-		r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
+	routingKey, body, intervalString := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
 	debug("/schedule", routingKey, body)
 
-	interval_i, err := strconv.ParseUint(interval_s, 10, 32)
+	intervalUint64, err := strconv.ParseUint(intervalString, 10, 32)
 	if err != nil {
 		http.Error(w, "Cannot parse interval", http.StatusBadRequest)
 		return
 	}
 
-	if interval_i < 1 {
+	if intervalUint64 < 1 {
 		http.Error(w, "interval must be >= 1", http.StatusBadRequest)
 		return
 	}
 
-	job := NewJob(routingKey, body, uint32(interval_i))
+	job := NewJob(routingKey, body, uint32(intervalUint64))
 	err = job.Enter()
 	if err != nil {
 		panic(err)
