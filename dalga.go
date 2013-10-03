@@ -1,7 +1,6 @@
 package main
 
 // TODO list
-// Idempotent schedule call
 // seperate files
 // make dalga a type
 // make http server closeable
@@ -218,8 +217,10 @@ func (j *Job) Enter() error {
 	_, err := db.Exec("INSERT INTO "+cfg.MySQL.Table+" "+
 		"(routing_key, body, `interval`, next_run) "+
 		"VALUES(?, ?, ?, ?) "+
-		"ON DUPLICATE KEY UPDATE `interval`=?",
-		j.RoutingKey, j.Body, interval, j.NextRun, interval)
+		"ON DUPLICATE KEY UPDATE "+
+		"next_run=DATE_ADD(next_run, INTERVAL (? - `interval`) SECOND), "+
+		"`interval`=?",
+		j.RoutingKey, j.Body, interval, j.NextRun, interval, interval)
 	return err
 }
 
