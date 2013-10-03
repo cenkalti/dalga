@@ -1,10 +1,5 @@
 package dalga
 
-// TODO list
-// write basic integration tests
-// handle mysql disconnect
-// handle rabbitmq disconnect
-
 import (
 	"database/sql"
 	"flag"
@@ -220,17 +215,31 @@ func (d *Dalga) publish(j *Job) error {
 	}
 
 	// Send a message to RabbitMQ
-	go d.channel.Publish(d.C.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
-		Headers: amqp.Table{
-			"interval":     j.Interval.Seconds(),
-			"published_at": time.Now().UTC().String(),
-		},
-		ContentType:  "application/octet-stream",
-		Body:         j.Body,
-		DeliveryMode: amqp.Persistent,
-		Priority:     0,
-		Expiration:   strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
-	})
+	pub := func() error {
+		return d.channel.Publish(d.C.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
+			Headers: amqp.Table{
+				"interval":     j.Interval.Seconds(),
+				"published_at": time.Now().UTC().String(),
+			},
+			ContentType:  "application/octet-stream",
+			Body:         j.Body,
+			DeliveryMode: amqp.Persistent,
+			Priority:     0,
+			Expiration:   strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
+		})
+	}
+
+	err = pub()
+	if err != nil {
+		if strings.Contains(err.Error(), "channel/connection is not open") {
+			// Retry again
+			err = d.connectMQ()
+			if err != nil {
+				return err
+			}
+			pub()
+		}
+	}
 
 	return nil
 }
@@ -261,6 +270,7 @@ func (d *Dalga) publisher() {
 		err := d.publish(j)
 		if err != nil {
 			fmt.Println(err)
+			time.Sleep(time.Duration(1) * time.Second)
 		}
 	}
 
@@ -289,6 +299,7 @@ func (d *Dalga) publisher() {
 				debug("Got wakeup signal")
 			} else {
 				fmt.Println(err)
+				time.Sleep(time.Duration(1) * time.Second)
 				continue
 			}
 		}
