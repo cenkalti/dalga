@@ -31,7 +31,7 @@ var (
 	db         *sql.DB
 	rabbit     *amqp.Connection
 	channel    *amqp.Channel
-	wakeUp     = make(chan int, 1)
+	wakeUp     = make(chan *Job)
 )
 
 type Config struct {
@@ -76,10 +76,10 @@ func NewConfig() *Config {
 }
 
 type Job struct {
-	routingKey string
-	body       string
-	interval   time.Duration
-	nextRun    time.Time
+	RoutingKey string
+	Body       string
+	Interval   time.Duration
+	NextRun    time.Time
 }
 
 func debug(args ...interface{}) {
@@ -94,17 +94,19 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 		r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
 	debug("/schedule", routingKey, body)
 
-	interval, err := strconv.ParseInt(interval_s, 10, 64)
+	interval_i, err := strconv.ParseUint(interval_s, 10, 32)
 	if err != nil {
-		panic(err)
+		http.Error(w, "Cannot parse interval", http.StatusBadRequest)
+		return
 	}
 
-	next_run := time.Now().UTC().Add(time.Duration(interval) * time.Second)
-	_, err = db.Exec("INSERT INTO "+cfg.MySQL.Table+" "+
-		"(routing_key, body, `interval`, next_run) "+
-		"VALUES(?, ?, ?, ?) "+
-		"ON DUPLICATE KEY UPDATE `interval`=?",
-		routingKey, body, interval, next_run, interval)
+	if interval_i < 1 {
+		http.Error(w, "interval must be >= 1", http.StatusBadRequest)
+		return
+	}
+
+	job := NewJob(routingKey, body, uint32(interval_i))
+	err = job.Enter()
 	if err != nil {
 		panic(err)
 	}
@@ -117,7 +119,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request) {
 	//
 	// The code below is an idiom for non-blocking send to a channel.
 	select {
-	case wakeUp <- 1:
+	case wakeUp <- job:
 		debug("Sent wakeup signal")
 	default:
 		debug("Skipped wakeup signal")
@@ -129,8 +131,7 @@ func handleCancel(w http.ResponseWriter, r *http.Request) {
 	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
 	debug("/cancel", routingKey, body)
 
-	_, err := db.Exec("DELETE FROM "+cfg.MySQL.Table+" "+
-		"WHERE routing_key=? AND body=?", routingKey, body)
+	err := CancelJob(routingKey, body)
 	if err != nil {
 		panic(err)
 	}
@@ -143,11 +144,11 @@ func front() (*Job, error) {
 	row := db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
 		"FROM " + cfg.MySQL.Table + " " +
 		"ORDER BY next_run ASC")
-	err := row.Scan(&j.routingKey, &j.body, &interval, &j.nextRun)
+	err := row.Scan(&j.RoutingKey, &j.Body, &interval, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
-	j.interval = time.Duration(interval) * time.Second
+	j.Interval = time.Duration(interval) * time.Second
 	return &j, nil
 }
 
@@ -160,23 +161,23 @@ func (j *Job) Publish() error {
 	_, err := db.Exec("UPDATE "+cfg.MySQL.Table+" "+
 		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
-		time.Now().UTC().Add(j.interval), j.routingKey, j.body)
+		time.Now().UTC().Add(j.Interval), j.RoutingKey, j.Body)
 	if err != nil {
 		return err
 	}
 
 	// Send a message to RabbitMQ
-	err = channel.Publish(cfg.RabbitMQ.Exchange, j.routingKey, false, false, amqp.Publishing{
+	err = channel.Publish(cfg.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
 		Headers: amqp.Table{
-			"interval":     j.interval.Seconds(),
+			"interval":     j.Interval.Seconds(),
 			"published_at": time.Now().UTC().String(),
 		},
 		ContentType:     "text/plain",
 		ContentEncoding: "UTF-8",
-		Body:            []byte(j.body),
+		Body:            []byte(j.Body),
 		DeliveryMode:    amqp.Persistent,
 		Priority:        0,
-		Expiration:      strconv.FormatUint(uint64(j.interval.Seconds()), 10) + "000",
+		Expiration:      strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
 	})
 	if err != nil {
 		return err
@@ -185,9 +186,42 @@ func (j *Job) Publish() error {
 	return nil
 }
 
+func NewJob(routingKey string, body string, interval uint32) *Job {
+	job := Job{
+		RoutingKey: routingKey,
+		Body:       body,
+		Interval:   time.Duration(interval) * time.Second,
+	}
+	job.SetNewNextRun()
+	return &job
+}
+
 // Remaining returns the duration until the job's next scheduled time.
 func (j *Job) Remaining() time.Duration {
-	return -time.Since(j.nextRun)
+	return -time.Since(j.NextRun)
+}
+
+// SetNewNextRun calculates the new run time according to current time and sets it on the job.
+func (j *Job) SetNewNextRun() {
+	j.NextRun = time.Now().UTC().Add(j.Interval)
+}
+
+// Enter puts the job to the waiting queue.
+func (j *Job) Enter() error {
+	interval := j.Interval.Seconds()
+	_, err := db.Exec("INSERT INTO "+cfg.MySQL.Table+" "+
+		"(routing_key, body, `interval`, next_run) "+
+		"VALUES(?, ?, ?, ?) "+
+		"ON DUPLICATE KEY UPDATE `interval`=?",
+		j.RoutingKey, j.Body, interval, j.NextRun, interval)
+	return err
+}
+
+// Cancel removes the job from the waiting queue.
+func CancelJob(routingKey, body string) error {
+	_, err := db.Exec("DELETE FROM "+cfg.MySQL.Table+" "+
+		"WHERE routing_key=? AND body=?", routingKey, body)
+	return err
 }
 
 // publisher runs a loop that reads the next Job from the queue and publishes it.
@@ -216,7 +250,7 @@ func publisher() {
 		debug("Next job:", job, "Remaining:", remaining)
 
 		now := time.Now().UTC()
-		if job.nextRun.After(now) {
+		if job.NextRun.After(now) {
 			// Wait until the next Job time or
 			// the webserver's /schedule handler wakes us up
 			debug("Sleeping for job:", remaining)
@@ -224,8 +258,11 @@ func publisher() {
 			case <-time.After(remaining):
 				debug("Job sleep time finished")
 				publish(job)
-			case <-wakeUp:
+			case newJob := <-wakeUp:
 				debug("Woke up by webserver")
+				if newJob.NextRun.Before(job.NextRun) {
+					continue
+				}
 				continue
 			}
 		} else {
