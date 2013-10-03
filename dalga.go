@@ -75,14 +75,6 @@ func NewConfig() *Config {
 	return c
 }
 
-func (c *Config) LoadFromFile(path string) error {
-	err := gcfg.ReadFileInto(c, path)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 type Job struct {
 	routingKey string
 	body       string
@@ -250,9 +242,9 @@ func main() {
 	// Read config
 	cfg = NewConfig()
 	if *configPath != "" {
-		err := cfg.LoadFromFile(*configPath)
+		err = gcfg.ReadFileInto(cfg, *configPath)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 		fmt.Println("Read config: ", cfg)
 	}
