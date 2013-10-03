@@ -57,24 +57,38 @@ func NewDalga(config *Config) *Dalga {
 	}
 }
 
-func (d *Dalga) Run() error {
+// Start starts the publisher and http server goroutines.
+func (d *Dalga) Start() (chan bool, error) {
 	err := d.connectDB()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = d.connectMQ()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	server, err := d.makeServer()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	go d.publisher()
 	go server()
+
+	ch := make(chan bool, 1)
+	ch <- true
+
+	return ch, nil
+}
+
+// Run starts the dalga and waits until Shutdown() is called.
+func (d *Dalga) Run() error {
+	_, err := d.Start()
+	if err != nil {
+		return err
+	}
 
 	debug("Waiting a message from quit channel")
 	<-d.quit
