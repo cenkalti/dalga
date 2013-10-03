@@ -1,7 +1,6 @@
 package dalga
 
 // TODO list
-// option for creating table
 // write basic integration tests
 // handle mysql disconnect
 // handle rabbitmq disconnect
@@ -18,6 +17,17 @@ import (
 	"strings"
 	"time"
 )
+
+const createTableSQL = "" +
+	"CREATE TABLE `%s` (" +
+	"  `routing_key` VARCHAR(255)    NOT NULL," +
+	"  `body`        BLOB(767)       NOT NULL," +
+	"  `interval`    INT UNSIGNED    NOT NULL," +
+	"  `next_run`    DATETIME        NOT NULL," +
+	"" +
+	"  PRIMARY KEY (`routing_key`, `body`(767))," +
+	"  KEY `idx_next_run` (`next_run`)" +
+	") ENGINE=InnoDB DEFAULT CHARSET=utf8"
 
 var debugging = flag.Bool("d", false, "turn on debug messages")
 
@@ -78,14 +88,25 @@ func (d *Dalga) Shutdown() error {
 
 func (d *Dalga) connectDB() error {
 	var err error
+	d.db, err = d.newMySQLConnection()
+	return err
+}
+
+func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
 	my := d.C.MySQL
 	dsn := my.User + ":" + my.Password + "@" + "tcp(" + my.Host + ":" + my.Port + ")/" + my.Db + "?parseTime=true"
-	d.db, err = sql.Open("mysql", dsn)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+
 	fmt.Println("Connected to MySQL")
-	return d.db.Ping()
+	return db, nil
 }
 
 func (d *Dalga) connectMQ() error {
@@ -99,6 +120,21 @@ func (d *Dalga) connectMQ() error {
 	d.channel, err = d.rabbit.Channel()
 	fmt.Println("Connected to RabbitMQ")
 	return err
+}
+
+func (d *Dalga) CreateTable() error {
+	db, err := d.newMySQLConnection()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	sql := fmt.Sprintf(createTableSQL, d.C.MySQL.Table)
+	_, err = db.Exec(sql)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // front returns the first job to be run in the queue.
