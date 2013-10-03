@@ -28,7 +28,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
 	}
 
 	job := NewJob(routingKey, body, uint32(intervalUint64))
-	err = job.Enter(d)
+	err = d.enter(job)
 	if err != nil {
 		panic(err)
 	}
@@ -53,7 +53,7 @@ func handleCancel(w http.ResponseWriter, r *http.Request, d *Dalga) {
 	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
 	debug("/cancel", routingKey, body)
 
-	err := CancelJob(routingKey, body, d)
+	err := d.cancel(routingKey, body)
 	if err != nil {
 		panic(err)
 	}

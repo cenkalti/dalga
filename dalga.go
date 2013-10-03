@@ -45,12 +45,12 @@ func NewDalga(config *Config) *Dalga {
 }
 
 func (d *Dalga) Run() error {
-	err := d.ConnectDB()
+	err := d.connectDB()
 	if err != nil {
 		return err
 	}
 
-	err = d.ConnectMQ()
+	err = d.connectMQ()
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (d *Dalga) Run() error {
 	return nil
 }
 
-func (d *Dalga) ConnectDB() error {
+func (d *Dalga) connectDB() error {
 	var err error
 	my := d.C.MySQL
 	dsn := my.User + ":" + my.Password + "@" + "tcp(" + my.Host + ":" + my.Port + ")/" + my.Db + "?parseTime=true"
@@ -79,7 +79,7 @@ func (d *Dalga) ConnectDB() error {
 	return d.db.Ping()
 }
 
-func (d *Dalga) ConnectMQ() error {
+func (d *Dalga) connectMQ() error {
 	var err error
 	rabbit := d.C.RabbitMQ
 	uri := "amqp://" + rabbit.User + ":" + rabbit.Password + "@" + rabbit.Host + ":" + rabbit.Port + rabbit.VHost
@@ -107,9 +107,9 @@ func (d *Dalga) front() (*Job, error) {
 	return &j, nil
 }
 
-// Publish sends a message to exchange defined in the config and
+// publish sends a message to exchange defined in the config and
 // updates the Job's next run time on the database.
-func (j *Job) Publish(d *Dalga) error {
+func (d *Dalga) publish(j *Job) error {
 	debug("publish", *j)
 
 	// Update next run time
@@ -141,8 +141,8 @@ func (j *Job) Publish(d *Dalga) error {
 	return nil
 }
 
-// Enter puts the job to the waiting queue.
-func (j *Job) Enter(d *Dalga) error {
+// enter puts the job to the waiting queue.
+func (d *Dalga) enter(j *Job) error {
 	interval := j.Interval.Seconds()
 	_, err := d.db.Exec("INSERT INTO "+d.C.MySQL.Table+" "+
 		"(routing_key, body, `interval`, next_run) "+
@@ -154,8 +154,8 @@ func (j *Job) Enter(d *Dalga) error {
 	return err
 }
 
-// Cancel removes the job from the waiting queue.
-func CancelJob(routingKey, body string, d *Dalga) error {
+// cancel removes the job from the waiting queue.
+func (d *Dalga) cancel(routingKey, body string) error {
 	_, err := d.db.Exec("DELETE FROM "+d.C.MySQL.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
 	return err
@@ -164,7 +164,7 @@ func CancelJob(routingKey, body string, d *Dalga) error {
 // publisher runs a loop that reads the next Job from the queue and publishes it.
 func (d *Dalga) publisher() {
 	publish := func(j *Job) {
-		err := j.Publish(d)
+		err := d.publish(j)
 		if err != nil {
 			fmt.Println(err)
 		}
