@@ -58,13 +58,13 @@ func (d *Dalga) Run() error {
 		return err
 	}
 
-	s, err := d.makeServer()
+	server, err := d.makeServer()
 	if err != nil {
 		return err
 	}
 
 	go d.publisher()
-	go s()
+	go server()
 
 	debug("Waiting a message from quit channel")
 	<-d.quit
