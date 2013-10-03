@@ -1,14 +1,12 @@
-package main
+package dalga
 
 // TODO list
-// seperate files
 // make http server closeable
 // write basic integration tests
 // handle mysql disconnect
 // handle rabbitmq disconnect
 
 import (
-	"code.google.com/p/gcfg"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -21,13 +19,16 @@ import (
 	"time"
 )
 
-var (
-	debugging  = flag.Bool("d", false, "turn on debug messages")
-	configPath = flag.String("c", "", "config file path")
-)
+var debugging = flag.Bool("d", false, "turn on debug messages")
+
+func debug(args ...interface{}) {
+	if *debugging {
+		log.Println(args...)
+	}
+}
 
 type Dalga struct {
-	cfg          *Config
+	C            *Config
 	db           *sql.DB
 	rabbit       *amqp.Connection
 	channel      *amqp.Channel
@@ -37,125 +38,58 @@ type Dalga struct {
 
 func NewDalga(config *Config) *Dalga {
 	return &Dalga{
-		cfg:          config,
+		C:            config,
 		newJobs:      make(chan *Job),
 		canceledJobs: make(chan *Job),
 	}
 }
 
-type Config struct {
-	MySQL struct {
-		User     string
-		Password string
-		Host     string
-		Port     string
-		Db       string
-		Table    string
-	}
-	RabbitMQ struct {
-		User     string
-		Password string
-		Host     string
-		Port     string
-		VHost    string
-		Exchange string
-	}
-	HTTP struct {
-		Host string
-		Port string
-	}
-}
-
-// NewConfig returns a pointer to a newly created Config initialized with default parameters.
-func NewConfig() *Config {
-	c := &Config{}
-	c.MySQL.User = "root"
-	c.MySQL.Host = "localhost"
-	c.MySQL.Port = "3306"
-	c.MySQL.Db = "test"
-	c.MySQL.Table = "dalga"
-	c.RabbitMQ.User = "guest"
-	c.RabbitMQ.Password = "guest"
-	c.RabbitMQ.Host = "localhost"
-	c.RabbitMQ.Port = "5672"
-	c.RabbitMQ.VHost = "/"
-	c.HTTP.Host = "0.0.0.0"
-	c.HTTP.Port = "17500"
-	return c
-}
-
-type Job struct {
-	RoutingKey string
-	Body       string
-	Interval   time.Duration
-	NextRun    time.Time
-}
-
-func debug(args ...interface{}) {
-	if *debugging {
-		log.Println(args...)
-	}
-}
-
-func (dalga *Dalga) makeHandler(fn func(http.ResponseWriter, *http.Request, *Dalga)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		fn(w, r, dalga)
-	}
-}
-
-// hadleSchedule is the web server endpoint for path: /schedule
-func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
-	routingKey, body, intervalString := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
-	debug("/schedule", routingKey, body)
-
-	intervalUint64, err := strconv.ParseUint(intervalString, 10, 32)
+func (d *Dalga) Run() error {
+	err := d.ConnectDB()
 	if err != nil {
-		http.Error(w, "Cannot parse interval", http.StatusBadRequest)
-		return
+		return err
 	}
 
-	if intervalUint64 < 1 {
-		http.Error(w, "interval must be >= 1", http.StatusBadRequest)
-		return
-	}
-
-	job := NewJob(routingKey, body, uint32(intervalUint64))
-	err = job.Enter(d)
+	err = d.ConnectMQ()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	// Wake up the publisher.
-	//
-	// publisher() may be sleeping for the next job on the queue
-	// at the time we schedule a new Job. Let it wake up so it can
-	// re-fetch the new Job from the front of the queue.
-	//
-	// The code below is an idiom for non-blocking send to a channel.
-	select {
-	case d.newJobs <- job:
-		debug("Sent new job signal")
-	default:
-		debug("Did not send new job signal")
-	}
+	// Run publisher
+	go d.publisher()
+
+	// Start HTTP server
+	addr := d.C.HTTP.Host + ":" + d.C.HTTP.Port
+	http.HandleFunc("/schedule", d.makeHandler(handleSchedule))
+	http.HandleFunc("/cancel", d.makeHandler(handleCancel))
+	http.ListenAndServe(addr, nil)
+
+	return nil
 }
 
-// handleCancel is the web server endpoint for path: /cancel
-func handleCancel(w http.ResponseWriter, r *http.Request, d *Dalga) {
-	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
-	debug("/cancel", routingKey, body)
-
-	err := CancelJob(routingKey, body, d)
+func (d *Dalga) ConnectDB() error {
+	var err error
+	my := d.C.MySQL
+	dsn := my.User + ":" + my.Password + "@" + "tcp(" + my.Host + ":" + my.Port + ")/" + my.Db + "?parseTime=true"
+	d.db, err = sql.Open("mysql", dsn)
 	if err != nil {
-		panic(err)
+		return err
 	}
+	fmt.Println("Connected to MySQL")
+	return d.db.Ping()
+}
 
-	select {
-	case d.canceledJobs <- &Job{RoutingKey: routingKey, Body: body}:
-		debug("Sent cancel signal")
-	default:
-		debug("Did not send cancel signal")
+func (d *Dalga) ConnectMQ() error {
+	var err error
+	rabbit := d.C.RabbitMQ
+	uri := "amqp://" + rabbit.User + ":" + rabbit.Password + "@" + rabbit.Host + ":" + rabbit.Port + rabbit.VHost
+	d.rabbit, err = amqp.Dial(uri)
+	if err != nil {
+		return err
 	}
+	d.channel, err = d.rabbit.Channel()
+	fmt.Println("Connected to RabbitMQ")
+	return err
 }
 
 // front returns the first job to be run in the queue.
@@ -163,7 +97,7 @@ func (d *Dalga) front() (*Job, error) {
 	var interval uint
 	j := Job{}
 	row := d.db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
-		"FROM " + d.cfg.MySQL.Table + " " +
+		"FROM " + d.C.MySQL.Table + " " +
 		"ORDER BY next_run ASC LIMIT 1")
 	err := row.Scan(&j.RoutingKey, &j.Body, &interval, &j.NextRun)
 	if err != nil {
@@ -179,7 +113,7 @@ func (j *Job) Publish(d *Dalga) error {
 	debug("publish", *j)
 
 	// Update next run time
-	_, err := d.db.Exec("UPDATE "+d.cfg.MySQL.Table+" "+
+	_, err := d.db.Exec("UPDATE "+d.C.MySQL.Table+" "+
 		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
 		time.Now().UTC().Add(j.Interval), j.RoutingKey, j.Body)
@@ -188,7 +122,7 @@ func (j *Job) Publish(d *Dalga) error {
 	}
 
 	// Send a message to RabbitMQ
-	err = d.channel.Publish(d.cfg.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
+	err = d.channel.Publish(d.C.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
 		Headers: amqp.Table{
 			"interval":     j.Interval.Seconds(),
 			"published_at": time.Now().UTC().String(),
@@ -207,30 +141,10 @@ func (j *Job) Publish(d *Dalga) error {
 	return nil
 }
 
-func NewJob(routingKey string, body string, interval uint32) *Job {
-	job := Job{
-		RoutingKey: routingKey,
-		Body:       body,
-		Interval:   time.Duration(interval) * time.Second,
-	}
-	job.SetNewNextRun()
-	return &job
-}
-
-// Remaining returns the duration until the job's next scheduled time.
-func (j *Job) Remaining() time.Duration {
-	return -time.Since(j.NextRun)
-}
-
-// SetNewNextRun calculates the new run time according to current time and sets it on the job.
-func (j *Job) SetNewNextRun() {
-	j.NextRun = time.Now().UTC().Add(j.Interval)
-}
-
 // Enter puts the job to the waiting queue.
 func (j *Job) Enter(d *Dalga) error {
 	interval := j.Interval.Seconds()
-	_, err := d.db.Exec("INSERT INTO "+d.cfg.MySQL.Table+" "+
+	_, err := d.db.Exec("INSERT INTO "+d.C.MySQL.Table+" "+
 		"(routing_key, body, `interval`, next_run) "+
 		"VALUES(?, ?, ?, ?) "+
 		"ON DUPLICATE KEY UPDATE "+
@@ -242,7 +156,7 @@ func (j *Job) Enter(d *Dalga) error {
 
 // Cancel removes the job from the waiting queue.
 func CancelJob(routingKey, body string, d *Dalga) error {
-	_, err := d.db.Exec("DELETE FROM "+d.cfg.MySQL.Table+" "+
+	_, err := d.db.Exec("DELETE FROM "+d.C.MySQL.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
 	return err
 }
@@ -309,57 +223,4 @@ func (d *Dalga) publisher() {
 		}
 
 	}
-}
-
-func main() {
-	var err error
-	flag.Parse()
-
-	// Read config
-	cfg := NewConfig()
-	if *configPath != "" {
-		err = gcfg.ReadFileInto(cfg, *configPath)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		fmt.Println("Read config: ", cfg)
-	}
-
-	// Create new Dalga instance
-	dalga := NewDalga(cfg)
-
-	// Connect to database
-	mysql := dalga.cfg.MySQL
-	dsn := mysql.User + ":" + mysql.Password + "@" + "tcp(" + mysql.Host + ":" + mysql.Port + ")/" + mysql.Db + "?parseTime=true"
-	dalga.db, err = sql.Open("mysql", dsn)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = dalga.db.Ping()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Connected to MySQL")
-
-	// Connect to RabbitMQ
-	rabbit := dalga.cfg.RabbitMQ
-	uri := "amqp://" + rabbit.User + ":" + rabbit.Password + "@" + rabbit.Host + ":" + rabbit.Port + rabbit.VHost
-	dalga.rabbit, err = amqp.Dial(uri)
-	if err != nil {
-		log.Fatal(err)
-	}
-	dalga.channel, err = dalga.rabbit.Channel()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Connected to RabbitMQ")
-
-	// Run publisher
-	go dalga.publisher()
-
-	// Start HTTP server
-	addr := cfg.HTTP.Host + ":" + cfg.HTTP.Port
-	http.HandleFunc("/schedule", dalga.makeHandler(handleSchedule))
-	http.HandleFunc("/cancel", dalga.makeHandler(handleCancel))
-	http.ListenAndServe(addr, nil)
 }
