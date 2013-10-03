@@ -1,7 +1,6 @@
 package dalga
 
 // TODO list
-// use bytes
 // option for creating table
 // write basic integration tests
 // handle mysql disconnect
@@ -137,12 +136,11 @@ func (d *Dalga) publish(j *Job) error {
 			"interval":     j.Interval.Seconds(),
 			"published_at": time.Now().UTC().String(),
 		},
-		ContentType:     "text/plain",
-		ContentEncoding: "UTF-8",
-		Body:            []byte(j.Body),
-		DeliveryMode:    amqp.Persistent,
-		Priority:        0,
-		Expiration:      strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
+		ContentType:  "application/octet-stream",
+		Body:         j.Body,
+		DeliveryMode: amqp.Persistent,
+		Priority:     0,
+		Expiration:   strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
 	})
 	if err != nil {
 		return err
@@ -165,7 +163,7 @@ func (d *Dalga) enter(j *Job) error {
 }
 
 // cancel removes the job from the waiting queue.
-func (d *Dalga) cancel(routingKey, body string) error {
+func (d *Dalga) cancel(routingKey string, body []byte) error {
 	_, err := d.db.Exec("DELETE FROM "+d.C.MySQL.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
 	return err
@@ -219,7 +217,7 @@ func (d *Dalga) publisher() {
 				goto CheckNextRun
 			case canceledJob := <-d.canceledJobs:
 				debug("A job has been cancelled")
-				if (job.RoutingKey == canceledJob.RoutingKey) && (job.Body == canceledJob.Body) {
+				if job.Equals(canceledJob) {
 					// The job we are waiting for has been canceled.
 					// We need to fetch the next job in the queue.
 					debug("The cancelled job is our current job")

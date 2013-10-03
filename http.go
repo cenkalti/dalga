@@ -48,7 +48,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
 		return
 	}
 
-	job := NewJob(routingKey, body, uint32(intervalUint64))
+	job := NewJob(routingKey, []byte(body), uint32(intervalUint64))
 	err = d.enter(job)
 	if err != nil {
 		panic(err)
@@ -71,8 +71,9 @@ func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
 
 // handleCancel is the web server endpoint for path: /cancel
 func handleCancel(w http.ResponseWriter, r *http.Request, d *Dalga) {
-	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
-	debug("/cancel", routingKey, body)
+	routingKey, bodyString := r.FormValue("routing_key"), r.FormValue("body")
+	debug("/cancel", routingKey, bodyString)
+	body := []byte(bodyString)
 
 	err := d.cancel(routingKey, body)
 	if err != nil {
