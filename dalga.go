@@ -184,8 +184,10 @@ func (d *Dalga) Cancel(routingKey string, body []byte) error {
 		return err
 	}
 
+	job := Job{RoutingKey: routingKey, Body: body}
+
 	select {
-	case d.canceledJobs <- &Job{RoutingKey: routingKey, Body: body}:
+	case d.canceledJobs <- &job:
 		debug("Sent cancel signal")
 	default:
 		debug("Did not send cancel signal")
@@ -228,33 +230,30 @@ func (d *Dalga) publish(j *Job) error {
 	}
 
 	// Send a message to RabbitMQ
-	pub := func() error {
-		return d.channel.Publish(d.C.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
-			Headers: amqp.Table{
-				"interval":     j.Interval.Seconds(),
-				"published_at": time.Now().UTC().String(),
-			},
-			ContentType:  "application/octet-stream",
-			Body:         j.Body,
-			DeliveryMode: amqp.Persistent,
-			Priority:     0,
-			Expiration:   strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
-		})
+	err = d.channel.Publish(d.C.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
+		Headers: amqp.Table{
+			"interval":     j.Interval.Seconds(),
+			"published_at": time.Now().UTC().String(),
+		},
+		ContentType:  "application/octet-stream",
+		Body:         j.Body,
+		DeliveryMode: amqp.Persistent,
+		Priority:     0,
+		Expiration:   strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
+	})
+
+	if err == nil { // Published successfully
+		return nil
 	}
 
-	err = pub()
-	if err != nil {
-		if strings.Contains(err.Error(), "channel/connection is not open") {
-			// Retry again
-			err = d.connectMQ()
-			if err != nil {
-				return err
-			}
-			pub()
-		}
-	}
+	log.Println(err)
 
-	return nil
+	// Revert next run time
+	_, err = d.db.Exec("UPDATE "+d.C.MySQL.Table+" "+
+		"SET next_run=? "+
+		"WHERE routing_key=? AND body=?",
+		j.NextRun, j.RoutingKey, j.Body)
+	return err
 }
 
 // insert puts the job to the waiting queue.
@@ -317,43 +316,44 @@ func (d *Dalga) publisher() {
 			}
 		}
 
-	CheckNextRun:
+	checkNextRun:
 		remaining := job.Remaining()
 		debug("Next job:", job, "Remaining:", remaining)
 
 		now := time.Now().UTC()
-		if job.NextRun.After(now) {
-			// Wait until the next Job time or
-			// the webserver's /schedule handler wakes us up
-			debug("Sleeping for job:", remaining)
-			select {
-			case <-time.After(remaining):
-				debug("Job sleep time finished")
-				publish(job)
-			case newJob := <-d.newJobs:
-				debug("A new job has been scheduled")
-				if newJob.NextRun.Before(job.NextRun) {
-					debug("The new job comes before out current job")
-					job = newJob // Process the new job next
-				}
-				// Continue processing the current job without fetching from database
-				goto CheckNextRun
-			case canceledJob := <-d.canceledJobs:
-				debug("A job has been cancelled")
-				if job.Equals(canceledJob) {
-					// The job we are waiting for has been canceled.
-					// We need to fetch the next job in the queue.
-					debug("The cancelled job is our current job")
-					continue
-				}
-				// Continue to process our current job
-				goto CheckNextRun
-			case <-d.quitPublisher:
-				debug("Message received from quitPublisher channel")
-				goto end
-			}
-		} else {
+		if !job.NextRun.After(now) {
 			publish(job)
+			continue
+		}
+
+		// Wait until the next Job time or
+		// the webserver's /schedule handler wakes us up
+		debug("Sleeping for job:", remaining)
+		select {
+		case <-time.After(remaining):
+			debug("Job sleep time finished")
+			publish(job)
+		case newJob := <-d.newJobs:
+			debug("A new job has been scheduled")
+			if newJob.NextRun.Before(job.NextRun) {
+				debug("The new job comes before out current job")
+				job = newJob // Process the new job next
+			}
+			// Continue processing the current job without fetching from database
+			goto checkNextRun
+		case canceledJob := <-d.canceledJobs:
+			debug("A job has been cancelled")
+			if job.Equals(canceledJob) {
+				// The job we are waiting for has been canceled.
+				// We need to fetch the next job in the queue.
+				debug("The cancelled job is our current job")
+				continue
+			}
+			// Continue to process our current job
+			goto checkNextRun
+		case <-d.quitPublisher:
+			debug("Came message from channel 3: quitPublisher")
+			goto end
 		}
 	}
 end:
