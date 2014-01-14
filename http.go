@@ -26,9 +26,9 @@ func (d *Dalga) makeServer() (func(), error) {
 	}, nil
 }
 
-func (dalga *Dalga) makeHandler(fn func(http.ResponseWriter, *http.Request, *Dalga)) http.HandlerFunc {
+func (d *Dalga) makeHandler(fn func(http.ResponseWriter, *http.Request, *Dalga)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fn(w, r, dalga)
+		fn(w, r, d)
 	}
 }
 
