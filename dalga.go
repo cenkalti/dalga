@@ -349,7 +349,7 @@ func (d *Dalga) publisher() {
 				// Continue to process our current job
 				goto CheckNextRun
 			case <-d.quitPublisher:
-				debug("Came message from channel 3: quitPublisher")
+				debug("Message received from quitPublisher channel")
 				goto end
 			}
 		} else {
