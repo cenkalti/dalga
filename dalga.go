@@ -17,8 +17,8 @@ import (
 const createTableSQL = "" +
 	"CREATE TABLE `%s` (" +
 	"  `routing_key` VARCHAR(255)    NOT NULL," +
-	"  `body`        BLOB(767)       NOT NULL," +
-	"  `interval`    INT UNSIGNED    NOT NULL," +
+	"  `body`        BLOB(767)       NOT NULL," + // 767 is the max index size
+	"  `interval`    INT UNSIGNED    NOT NULL," + // 32-bit
 	"  `next_run`    DATETIME        NOT NULL," +
 	"" +
 	"  PRIMARY KEY (`routing_key`, `body`(767))," +
