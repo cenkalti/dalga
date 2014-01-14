@@ -1,11 +1,11 @@
 package main
 
 import (
-	"code.google.com/p/gcfg"
 	"flag"
 	"fmt"
-	"github.com/cenkalti/dalga"
 	"log"
+
+	"code.google.com/p/gcfg"
 )
 
 var (
@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	// Read config
-	c := dalga.NewConfig()
+	c := NewConfig()
 	if *configPath != "" {
 		err = gcfg.ReadFileInto(c, *configPath)
 		if err != nil {
@@ -28,7 +28,7 @@ func main() {
 	}
 
 	// Initialize Dalga object
-	d := dalga.NewDalga(c)
+	d := NewDalga(c)
 
 	// Create jobs table
 	if *createTable {

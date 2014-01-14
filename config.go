@@ -1,4 +1,4 @@
-package dalga
+package main
 
 type Config struct {
 	MySQL struct {

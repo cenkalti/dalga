@@ -1,4 +1,4 @@
-package dalga
+package main
 
 import (
 	"database/sql"
