@@ -35,7 +35,7 @@ func (dalga *Dalga) makeHandler(fn func(http.ResponseWriter, *http.Request, *Dal
 // hadleSchedule is the web server endpoint for path: /schedule
 func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
 	routingKey, body, intervalString := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
-	debug("/schedule", routingKey, body)
+	debug("/schedule", routingKey, body, intervalString)
 
 	intervalUint64, err := strconv.ParseUint(intervalString, 10, 32)
 	if err != nil {
@@ -50,7 +50,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
 
 	err = d.Schedule(routingKey, []byte(body), uint32(intervalUint64))
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -61,6 +61,6 @@ func handleCancel(w http.ResponseWriter, r *http.Request, d *Dalga) {
 
 	err := d.Cancel(routingKey, []byte(body))
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
