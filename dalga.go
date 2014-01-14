@@ -104,10 +104,7 @@ func (d *Dalga) connectDB() error {
 }
 
 func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
-	my := d.C.MySQL
-	dsn := my.User + ":" + my.Password + "@" + "tcp(" + my.Host + ":" + my.Port + ")/" + my.Db + "?parseTime=true"
-
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open("mysql", d.C.MySQL.DSN())
 	if err != nil {
 		return nil, err
 	}
@@ -123,10 +120,8 @@ func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
 
 func (d *Dalga) connectMQ() error {
 	var err error
-	rabbit := d.C.RabbitMQ
-	uri := "amqp://" + rabbit.User + ":" + rabbit.Password + "@" + rabbit.Host + ":" + rabbit.Port + rabbit.VHost
 
-	d.rabbit, err = amqp.Dial(uri)
+	d.rabbit, err = amqp.Dial(d.C.RabbitMQ.URL())
 	if err != nil {
 		return err
 	}
