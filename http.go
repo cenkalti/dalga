@@ -37,7 +37,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
 	routingKey, body, intervalString := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
 	debug("/schedule", routingKey, body)
 
-	intervalUint64, err := strconv.ParseUint(intervalString, 10, 32)
+	intervalUint64, err := strconv.ParseUint(intervalString, 10, 64)
 	if err != nil {
 		http.Error(w, "Cannot parse interval", http.StatusBadRequest)
 		return
