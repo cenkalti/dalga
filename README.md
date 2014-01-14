@@ -47,7 +47,8 @@ Install
 Usage
 -----
 
-First, you need a config file. Please see ``dalga.ini`` file from the repository.
+First, you need a config file.
+You can use ``dalga.ini`` file from the repository as a template.
 
 To create a table for storing jobs::
 
