@@ -194,7 +194,7 @@ func (d *Dalga) Cancel(routingKey string, body []byte) error {
 
 // front returns the first job to be run in the queue.
 func (d *Dalga) front() (*Job, error) {
-	var interval uint
+	var interval uint32
 	var j Job
 
 	row := d.db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
