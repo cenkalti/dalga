@@ -42,7 +42,7 @@ Requirements
 Install
 -------
 
-`go get github.com/cenkalti/dalga`
+    $ go get github.com/cenkalti/dalga
 
 Usage
 -----
