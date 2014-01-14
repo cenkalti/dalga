@@ -11,10 +11,11 @@ While web server provides methods for scheduling and canceling jobs,
 publisher is responsible for reading the stored jobs from database
 and publishing them to a RabbitMQ exchange.
 
-It is a big improvement from polling on database and very efficient.
+Rationale
+---------
 
-Let me explain with an example: Suppose that you have 1,000,000 RSS feed
-that you want to check for updates in every 5 minutes. Also, each feed has
+It is easier to explain with an example: Suppose that you have 1,000,000 RSS
+feed that you want to check for updates in every 5 minutes. Also, each feed has
 different check time (i.e. feed A must be checked at t, t+5, t+10 and
 feed B must be checked at t+2, t+7, t+12). The naive approach is selecting
 the feeds which their time has come with a query like
@@ -29,6 +30,8 @@ and an interval that you want. Then, Dalga will publish that messages at the
 specified intervals. In this example the routing key may be "rss" so you point
 your workers to consume messages from "rss" queue and the body of the message
 may be the serialized representation of the feed.
+
+I think it is a big improvement from polling on database.
 
 Currently the messages are fetched from the database one-by-one but it can
 be changed to fetch in chunks to reduce query load on the database in future.
