@@ -8,8 +8,10 @@ func TestSchedule(t *testing.T) {
 	d := NewDalga(NewConfig())
 	err := d.Start()
 	if err != nil {
-		t.Error("Cannot start Dalga")
+		t.Error("Cannot start Dalga:", err)
+		return
 	}
+
 	defer d.Shutdown()
 
 	err = d.Schedule("key", []byte("body"), 1)

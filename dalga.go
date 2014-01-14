@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/streadway/amqp"
 	"log"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/streadway/amqp"
 )
 
 const createTableSQL = "" +
@@ -73,6 +74,7 @@ func (d *Dalga) Start() error {
 
 	go d.publisher()
 	go server()
+
 	return nil
 }
 
@@ -86,6 +88,7 @@ func (d *Dalga) Run() error {
 	debug("Waiting a message from publisherFinished channel")
 	<-d.publisherFinished
 	debug("Received message from publisherFinished channel")
+
 	return nil
 }
 
@@ -102,6 +105,7 @@ func (d *Dalga) connectDB() error {
 func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
 	my := d.C.MySQL
 	dsn := my.User + ":" + my.Password + "@" + "tcp(" + my.Host + ":" + my.Port + ")/" + my.Db + "?parseTime=true"
+
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, err
@@ -112,7 +116,7 @@ func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
 		return nil, err
 	}
 
-	fmt.Println("Connected to MySQL")
+	log.Println("Connected to MySQL")
 	return db, nil
 }
 
@@ -120,12 +124,14 @@ func (d *Dalga) connectMQ() error {
 	var err error
 	rabbit := d.C.RabbitMQ
 	uri := "amqp://" + rabbit.User + ":" + rabbit.Password + "@" + rabbit.Host + ":" + rabbit.Port + rabbit.VHost
+
 	d.rabbit, err = amqp.Dial(uri)
 	if err != nil {
 		return err
 	}
+
 	d.channel, err = d.rabbit.Channel()
-	fmt.Println("Connected to RabbitMQ")
+	log.Println("Connected to RabbitMQ")
 	return err
 }
 
@@ -141,6 +147,7 @@ func (d *Dalga) CreateTable() error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -188,14 +195,17 @@ func (d *Dalga) Cancel(routingKey string, body []byte) error {
 // front returns the first job to be run in the queue.
 func (d *Dalga) front() (*Job, error) {
 	var interval uint
-	j := Job{}
+	var j Job
+
 	row := d.db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
 		"FROM " + d.C.MySQL.Table + " " +
 		"ORDER BY next_run ASC LIMIT 1")
+
 	err := row.Scan(&j.RoutingKey, &j.Body, &interval, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
+
 	j.Interval = time.Duration(interval) * time.Second
 	return &j, nil
 }
@@ -269,7 +279,7 @@ func (d *Dalga) publisher() {
 	publish := func(j *Job) {
 		err := d.publish(j)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			time.Sleep(time.Duration(1) * time.Second)
 		}
 	}
@@ -298,7 +308,7 @@ func (d *Dalga) publisher() {
 
 				debug("Got wakeup signal")
 			} else {
-				fmt.Println(err)
+				log.Println(err)
 				time.Sleep(time.Duration(1) * time.Second)
 				continue
 			}
