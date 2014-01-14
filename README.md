@@ -50,11 +50,11 @@ Usage
 First, you need a config file.
 You can use ``dalga.ini`` file from the repository as a template.
 
-To create a table for storing jobs::
+To create a table for storing jobs:
 
     $ dalga -c dalga.ini -t
 
-Then, run the server::
+Then, run the server:
 
     $ dalga -c dalga.ini
 
