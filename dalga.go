@@ -35,7 +35,7 @@ func debug(args ...interface{}) {
 }
 
 type Dalga struct {
-	C                 *Config
+	Config            *Config
 	db                *sql.DB
 	rabbit            *amqp.Connection
 	channel           *amqp.Channel
@@ -48,7 +48,7 @@ type Dalga struct {
 
 func NewDalga(config *Config) *Dalga {
 	return &Dalga{
-		C:                 config,
+		Config:            config,
 		newJobs:           make(chan *Job),
 		canceledJobs:      make(chan *Job),
 		quitPublisher:     make(chan bool),
@@ -104,7 +104,7 @@ func (d *Dalga) connectDB() error {
 }
 
 func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
-	db, err := sql.Open("mysql", d.C.MySQL.DSN())
+	db, err := sql.Open("mysql", d.Config.MySQL.DSN())
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
 func (d *Dalga) connectMQ() error {
 	var err error
 
-	d.rabbit, err = amqp.Dial(d.C.RabbitMQ.URL())
+	d.rabbit, err = amqp.Dial(d.Config.RabbitMQ.URL())
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (d *Dalga) CreateTable() error {
 	}
 	defer db.Close()
 
-	sql := fmt.Sprintf(createTableSQL, d.C.MySQL.Table)
+	sql := fmt.Sprintf(createTableSQL, d.Config.MySQL.Table)
 	_, err = db.Exec(sql)
 	if err != nil {
 		return err
@@ -198,7 +198,7 @@ func (d *Dalga) front() (*Job, error) {
 	var j Job
 
 	row := d.db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
-		"FROM " + d.C.MySQL.Table + " " +
+		"FROM " + d.Config.MySQL.Table + " " +
 		"ORDER BY next_run ASC LIMIT 1")
 
 	err := row.Scan(&j.RoutingKey, &j.Body, &interval, &j.NextRun)
@@ -216,7 +216,7 @@ func (d *Dalga) publish(j *Job) error {
 	debug("publish", *j)
 
 	// Update next run time
-	_, err := d.db.Exec("UPDATE "+d.C.MySQL.Table+" "+
+	_, err := d.db.Exec("UPDATE "+d.Config.MySQL.Table+" "+
 		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
 		time.Now().UTC().Add(j.Interval), j.RoutingKey, j.Body)
@@ -225,7 +225,7 @@ func (d *Dalga) publish(j *Job) error {
 	}
 
 	// Send a message to RabbitMQ
-	err = d.channel.Publish(d.C.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
+	err = d.channel.Publish(d.Config.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
 		Headers: amqp.Table{
 			"interval":     j.Interval.Seconds(),
 			"published_at": time.Now().UTC().String(),
@@ -244,7 +244,7 @@ func (d *Dalga) publish(j *Job) error {
 	log.Println(err)
 
 	// Revert next run time
-	_, err = d.db.Exec("UPDATE "+d.C.MySQL.Table+" "+
+	_, err = d.db.Exec("UPDATE "+d.Config.MySQL.Table+" "+
 		"SET next_run=? "+
 		"WHERE routing_key=? AND body=?",
 		j.NextRun, j.RoutingKey, j.Body)
@@ -254,7 +254,7 @@ func (d *Dalga) publish(j *Job) error {
 // insert puts the job to the waiting queue.
 func (d *Dalga) insert(j *Job) error {
 	interval := j.Interval.Seconds()
-	_, err := d.db.Exec("INSERT INTO "+d.C.MySQL.Table+" "+
+	_, err := d.db.Exec("INSERT INTO "+d.Config.MySQL.Table+" "+
 		"(routing_key, body, `interval`, next_run) "+
 		"VALUES(?, ?, ?, ?) "+
 		"ON DUPLICATE KEY UPDATE "+
@@ -266,7 +266,7 @@ func (d *Dalga) insert(j *Job) error {
 
 // delete removes the job from the waiting queue.
 func (d *Dalga) delete(routingKey string, body []byte) error {
-	_, err := d.db.Exec("DELETE FROM "+d.C.MySQL.Table+" "+
+	_, err := d.db.Exec("DELETE FROM "+d.Config.MySQL.Table+" "+
 		"WHERE routing_key=? AND body=?", routingKey, body)
 	return err
 }

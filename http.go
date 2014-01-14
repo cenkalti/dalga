@@ -8,7 +8,7 @@ import (
 
 func (d *Dalga) makeServer() (func(), error) {
 	var err error
-	d.listener, err = net.Listen("tcp", d.C.HTTP.Addr())
+	d.listener, err = net.Listen("tcp", d.Config.HTTP.Addr())
 	if err != nil {
 		return nil, err
 	}
