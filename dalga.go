@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -28,7 +29,7 @@ const createTableSQL = "" +
 var debugging = flag.Bool("d", false, "turn on debug messages")
 
 func debug(args ...interface{}) {
-	if *debugging {
+	if *debugging || os.Getenv("DALGA_DEBUG") != "" {
 		log.Println(args...)
 	}
 }
@@ -173,6 +174,7 @@ func (d *Dalga) Schedule(routingKey string, body []byte, interval uint32) error 
 		debug("Did not send new job signal")
 	}
 
+	debug("Job is scheduled:", job)
 	return nil
 }
 
@@ -189,6 +191,7 @@ func (d *Dalga) Cancel(routingKey string, body []byte) error {
 		debug("Did not send cancel signal")
 	}
 
+	debug("Job is cancelled:", job)
 	return nil
 }
 

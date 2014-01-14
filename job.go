@@ -2,6 +2,7 @@ package dalga
 
 import (
 	"bytes"
+	"fmt"
 	"time"
 )
 
@@ -20,6 +21,10 @@ func NewJob(routingKey string, body []byte, interval uint32) *Job {
 	}
 	job.SetNewNextRun()
 	return &job
+}
+
+func (j *Job) String() string {
+	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.RoutingKey, string(j.Body), j.Interval/time.Second, j.NextRun.String()[:23])
 }
 
 // Remaining returns the duration until the job's next scheduled time.
