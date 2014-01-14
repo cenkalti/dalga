@@ -33,6 +33,5 @@ func (j *Job) SetNewNextRun() {
 }
 
 func (j *Job) Equals(k *Job) bool {
-	return (j.RoutingKey == k.RoutingKey) &&
-		(bytes.Compare(j.Body, k.Body) == 0)
+	return (j.RoutingKey == k.RoutingKey) && (bytes.Compare(j.Body, k.Body) == 0)
 }
