@@ -23,6 +23,7 @@ func NewJob(routingKey string, body []byte, interval uint32) *Job {
 	return &job
 }
 
+// String implements Stringer interface. Returns the job in human-readable form.
 func (j *Job) String() string {
 	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.RoutingKey, string(j.Body), j.Interval/time.Second, j.NextRun.String()[:23])
 }
