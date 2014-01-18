@@ -13,7 +13,7 @@ func NewConfig() *Config {
 			User:  "root",
 			Host:  "localhost",
 			Port:  "3306",
-			Db:    "test",
+			DB:    "test",
 			Table: "dalga",
 		},
 		RabbitMQ: rabbitmqConfig{
@@ -35,12 +35,12 @@ type mysqlConfig struct {
 	Password string
 	Host     string
 	Port     string
-	Db       string
+	DB       string
 	Table    string
 }
 
 func (c mysqlConfig) DSN() string {
-	return c.User + ":" + c.Password + "@" + "tcp(" + c.Host + ":" + c.Port + ")/" + c.Db + "?parseTime=true"
+	return c.User + ":" + c.Password + "@" + "tcp(" + c.Host + ":" + c.Port + ")/" + c.DB + "?parseTime=true"
 }
 
 type rabbitmqConfig struct {
