@@ -338,7 +338,7 @@ func (d *Dalga) publisher() {
 			goto checkNextRun
 		case canceledJob := <-d.canceledJobs:
 			debug("A job has been cancelled")
-			if job.Equals(canceledJob) {
+			if job.Equal(canceledJob) {
 				// The job we are waiting for has been canceled.
 				// We need to fetch the next job in the queue.
 				debug("The cancelled job is our current job")

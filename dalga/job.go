@@ -38,6 +38,6 @@ func (j *Job) SetNewNextRun() {
 	j.NextRun = time.Now().UTC().Add(j.Interval)
 }
 
-func (j *Job) Equals(k *Job) bool {
+func (j *Job) Equal(k *Job) bool {
 	return (j.RoutingKey == k.RoutingKey) && (bytes.Compare(j.Body, k.Body) == 0)
 }
