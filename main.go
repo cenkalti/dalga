@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"github.com/cenkalti/dalga/dalga"
 
 	"code.google.com/p/gcfg"
 )
@@ -18,7 +19,7 @@ func main() {
 	flag.Parse()
 
 	// Read config
-	c := NewConfig()
+	c := dalga.NewConfig()
 	if *configPath != "" {
 		err = gcfg.ReadFileInto(c, *configPath)
 		if err != nil {
@@ -28,7 +29,7 @@ func main() {
 	}
 
 	// Initialize Dalga object
-	d := NewDalga(c)
+	d := dalga.NewDalga(c)
 
 	// Create jobs table
 	if *createTable {
