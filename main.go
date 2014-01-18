@@ -25,7 +25,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		fmt.Println("Read config: ", c)
+		fmt.Printf("Read config: %#v\n", c)
 	}
 
 	// Initialize Dalga object
