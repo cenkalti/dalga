@@ -1,5 +1,9 @@
 package dalga
 
+import (
+	"fmt"
+)
+
 type Config struct {
 	MySQL    mysqlConfig
 	RabbitMQ rabbitmqConfig
@@ -40,7 +44,7 @@ type mysqlConfig struct {
 }
 
 func (c mysqlConfig) DSN() string {
-	return c.User + ":" + c.Password + "@" + "tcp(" + c.Host + ":" + c.Port + ")/" + c.DB + "?parseTime=true"
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", c.User, c.Password, c.Host, c.Port, c.DB)
 }
 
 type rabbitmqConfig struct {
@@ -53,7 +57,7 @@ type rabbitmqConfig struct {
 }
 
 func (c rabbitmqConfig) URL() string {
-	return "amqp://" + c.User + ":" + c.Password + "@" + c.Host + ":" + c.Port + c.VHost
+	return fmt.Sprintf("amqp://%s:%s@%s:%s%s", c.User, c.Password, c.Host, c.Port, c.VHost)
 }
 
 type httpConfig struct {
