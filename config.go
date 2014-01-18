@@ -8,20 +8,26 @@ type Config struct {
 
 // NewConfig returns a pointer to a newly created Config initialized with default parameters.
 func NewConfig() *Config {
-	c := &Config{}
-	c.MySQL.User = "root"
-	c.MySQL.Host = "localhost"
-	c.MySQL.Port = "3306"
-	c.MySQL.Db = "test"
-	c.MySQL.Table = "dalga"
-	c.RabbitMQ.User = "guest"
-	c.RabbitMQ.Password = "guest"
-	c.RabbitMQ.Host = "localhost"
-	c.RabbitMQ.Port = "5672"
-	c.RabbitMQ.VHost = "/"
-	c.HTTP.Host = "0.0.0.0"
-	c.HTTP.Port = "17500"
-	return c
+	return &Config{
+		MySQL: mysqlConfig{
+			User:  "root",
+			Host:  "localhost",
+			Port:  "3306",
+			Db:    "test",
+			Table: "dalga",
+		},
+		RabbitMQ: rabbitmqConfig{
+			User:     "guest",
+			Password: "guest",
+			Host:     "localhost",
+			Port:     "5672",
+			VHost:    "/",
+		},
+		HTTP: httpConfig{
+			Host: "0.0.0.0",
+			Port: "17500",
+		},
+	}
 }
 
 type mysqlConfig struct {
