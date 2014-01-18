@@ -69,6 +69,13 @@ func TestSchedule(t *testing.T) {
 			t.Errorf(err.Error())
 			return
 		}
+
+		// Channel is closed after an error, need to re-open.
+		channel, err = mq.Channel()
+		if err != nil {
+			t.Errorf(err.Error())
+			return
+		}
 	}
 
 	println("deleted queue")
