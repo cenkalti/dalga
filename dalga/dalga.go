@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -293,7 +292,7 @@ func (d *Dalga) publisher() {
 
 		job, err := d.front()
 		if err != nil {
-			if strings.Contains(err.Error(), "no rows in result set") {
+			if err == sql.ErrNoRows {
 				debug("No waiting jobs in the queue")
 				debug("Waiting wakeup signal")
 				select {
