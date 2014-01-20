@@ -292,21 +292,20 @@ func (d *Dalga) publisher() {
 
 		job, err := d.front()
 		if err != nil {
-			if err == sql.ErrNoRows {
-				debug("No waiting jobs in the queue")
-				debug("Waiting wakeup signal")
-				select {
-				case job = <-d.newJobs:
-				case <-d.quitPublisher:
-					debug("Came message from channel 2: quitPublisher")
-					goto end
-				}
-
-				debug("Got wakeup signal")
-			} else {
+			if err != sql.ErrNoRows {
 				log.Println(err)
 				time.Sleep(time.Duration(1) * time.Second)
 				continue
+			}
+
+			debug("No waiting jobs in the queue")
+			debug("Waiting for new job signal")
+			select {
+			case job = <-d.newJobs:
+				debug("Got new job signal")
+			case <-d.quitPublisher:
+				debug("Came message from channel 2: quitPublisher")
+				goto end
 			}
 		}
 
