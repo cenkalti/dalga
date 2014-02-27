@@ -1,6 +1,8 @@
 Dalga
 =====
 
+[![Build Status](https://travis-ci.org/cenkalti/dalga.png)](https://travis-ci.org/cenkalti/dalga)
+
 A periodic message publishing server.
 
 Dalga is designed to be a job scheduler and
