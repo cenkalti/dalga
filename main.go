@@ -4,9 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"github.com/cenkalti/dalga/dalga"
 
 	"code.google.com/p/gcfg"
+	"github.com/cenkalti/dalga/dalga"
 )
 
 var (
