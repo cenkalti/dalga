@@ -30,8 +30,7 @@ func TestSchedule(t *testing.T) {
 
 	err = db.Ping()
 	if err != nil {
-		t.Errorf(err.Error())
-		return
+		t.Fatalf("cannot connect to MySQL: %s", err.Error())
 	}
 
 	println("connected to db")
@@ -40,8 +39,7 @@ func TestSchedule(t *testing.T) {
 	_, err = db.Exec(sql)
 	if err != nil {
 		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
-			t.Errorf(err.Error())
-			return
+			t.Fatal(err)
 		}
 	}
 
@@ -49,16 +47,14 @@ func TestSchedule(t *testing.T) {
 
 	mq, err := amqp.Dial(config.RabbitMQ.URL())
 	if err != nil {
-		t.Errorf(err.Error())
-		return
+		t.Fatalf("cannot connect to RabbitMQ: %s", err.Error())
 	}
 
 	defer mq.Close()
 
 	channel, err := mq.Channel()
 	if err != nil {
-		t.Errorf(err.Error())
-		return
+		t.Fatal(err)
 	}
 
 	println("connected to mq")
@@ -66,15 +62,13 @@ func TestSchedule(t *testing.T) {
 	_, err = channel.QueueDelete(testKey, false, false, false)
 	if err != nil {
 		if mqErr, ok := err.(*amqp.Error); !ok || mqErr.Code != 404 { // NOT_FOUND
-			t.Errorf(err.Error())
-			return
+			t.Fatal(err)
 		}
 
 		// Channel is closed after an error, need to re-open.
 		channel, err = mq.Channel()
 		if err != nil {
-			t.Errorf(err.Error())
-			return
+			t.Fatal(err)
 		}
 	}
 
@@ -84,24 +78,21 @@ func TestSchedule(t *testing.T) {
 
 	err = d.CreateTable()
 	if err != nil {
-		t.Errorf(err.Error())
-		return
+		t.Fatal(err)
 	}
 
 	println("created table")
 
 	_, err = channel.QueueDeclare(testKey, false, false, false, false, nil)
 	if err != nil {
-		t.Errorf(err.Error())
-		return
+		t.Fatal(err)
 	}
 
 	println("declared queue")
 
 	err = d.Start()
 	if err != nil {
-		t.Error("Cannot start Dalga:", err)
-		return
+		t.Fatalf("cannot start Dalga: %s", err.Error())
 	}
 
 	println("started dalga")
@@ -110,8 +101,7 @@ func TestSchedule(t *testing.T) {
 
 	err = d.Schedule(testKey, testBody, uint32(testInterval/time.Second))
 	if err != nil {
-		t.Error("Cannot schedule new job:", err)
-		return
+		t.Fatalf("Cannot schedule new job: %s", err.Error())
 	}
 
 	println("scheduled job")
@@ -120,16 +110,13 @@ func TestSchedule(t *testing.T) {
 
 	msg, ok, err := channel.Get(testKey, true)
 	if err != nil {
-		t.Errorf(err.Error())
-		return
+		t.Fatal(err)
 	}
 	if !ok {
-		t.Errorf("No message")
-		return
+		t.Fatal("No message")
 	}
 	if bytes.Compare(msg.Body, testBody) != 0 {
-		t.Errorf("Invalid body:", msg.Body)
-		return
+		t.Fatalf("Invalid body: %s", string(msg.Body))
 	}
 
 	println("got message from queue")
