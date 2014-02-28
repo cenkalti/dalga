@@ -14,8 +14,8 @@ func (d *Dalga) makeServer() (func(), error) {
 	}
 
 	handler := http.NewServeMux()
-	handler.HandleFunc("/schedule", d.makeHandler(handleSchedule))
-	handler.HandleFunc("/cancel", d.makeHandler(handleCancel))
+	handler.HandleFunc("/schedule", d.handleSchedule)
+	handler.HandleFunc("/cancel", d.handleCancel)
 
 	return func() {
 		http.Serve(d.listener, handler)
@@ -25,14 +25,8 @@ func (d *Dalga) makeServer() (func(), error) {
 	}, nil
 }
 
-func (d *Dalga) makeHandler(fn func(http.ResponseWriter, *http.Request, *Dalga)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		fn(w, r, d)
-	}
-}
-
 // hadleSchedule is the web server endpoint for path: /schedule
-func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
+func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
 	routingKey, body, intervalString := r.FormValue("routing_key"), r.FormValue("body"), r.FormValue("interval")
 	debug("/schedule", routingKey, body, intervalString)
 
@@ -54,7 +48,7 @@ func handleSchedule(w http.ResponseWriter, r *http.Request, d *Dalga) {
 }
 
 // handleCancel is the web server endpoint for path: /cancel
-func handleCancel(w http.ResponseWriter, r *http.Request, d *Dalga) {
+func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request) {
 	routingKey, body := r.FormValue("routing_key"), r.FormValue("body")
 	debug("/cancel", routingKey, body)
 
