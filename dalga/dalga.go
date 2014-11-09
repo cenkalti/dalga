@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strconv"
 	"time"
 
@@ -32,7 +31,7 @@ const createTableSQL = "" +
 var debugging = flag.Bool("debug", false, "turn on debug messages")
 
 func debug(args ...interface{}) {
-	if *debugging || os.Getenv("DALGA_DEBUG") != "" {
+	if *debugging {
 		log.Println(args...)
 	}
 }
