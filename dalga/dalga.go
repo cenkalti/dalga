@@ -57,13 +57,11 @@ func NewDalga(config *Config) *Dalga {
 
 // Start starts the publisher and http server goroutines.
 func (d *Dalga) Start() error {
-	err := d.connectDB()
-	if err != nil {
+	if err := d.connectDB(); err != nil {
 		return err
 	}
 
-	err = d.connectMQ()
-	if err != nil {
+	if err := d.connectMQ(); err != nil {
 		return err
 	}
 

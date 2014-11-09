@@ -44,6 +44,6 @@ func main() {
 	// Run Dalga
 	err = d.Run()
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
 	}
 }

@@ -14,7 +14,7 @@ var (
 	testKey      = "testKey"
 	testBody     = []byte("body")
 	testInterval = 1 * time.Second
-	testDelay    = 100 * time.Millisecond
+	testDelay    = 1 * time.Second
 )
 
 func TestSchedule(t *testing.T) {
@@ -106,18 +106,21 @@ func TestSchedule(t *testing.T) {
 
 	println("scheduled job")
 
-	time.Sleep(testInterval + testDelay)
-
-	msg, ok, err := channel.Get(testKey, true)
+	deliveries, err := channel.Consume(testKey, "", false, true, false, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ok {
-		t.Fatal("No message")
-	}
-	if bytes.Compare(msg.Body, testBody) != 0 {
-		t.Fatalf("Invalid body: %s", string(msg.Body))
-	}
 
-	println("got message from queue")
+	select {
+	case d, ok := <-deliveries:
+		if !ok {
+			t.Fatal("Consumer closed")
+		}
+		println("got message from queue")
+		if !bytes.Equal(d.Body, testBody) {
+			t.Fatalf("Invalid body: %s", string(d.Body))
+		}
+	case <-time.After(testInterval + testDelay):
+		t.Fatal("timeout")
+	}
 }
