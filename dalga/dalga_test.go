@@ -1,7 +1,6 @@
 package dalga
 
 import (
-	"bytes"
 	"database/sql"
 	"testing"
 	"time"
@@ -12,9 +11,9 @@ import (
 
 var (
 	testKey      = "testKey"
-	testBody     = []byte("body")
-	testInterval = 1 * time.Second
-	testDelay    = 1 * time.Second
+	testID       = "class:1"
+	testInterval = time.Second
+	testDelay    = time.Second
 )
 
 func TestSchedule(t *testing.T) {
@@ -99,7 +98,7 @@ func TestSchedule(t *testing.T) {
 
 	defer d.Shutdown()
 
-	err = d.Schedule(testKey, testBody, uint32(testInterval/time.Second))
+	err = d.Schedule(testID, testKey, uint32(testInterval/time.Second))
 	if err != nil {
 		t.Fatalf("Cannot schedule new job: %s", err.Error())
 	}
@@ -117,7 +116,7 @@ func TestSchedule(t *testing.T) {
 			t.Fatal("Consumer closed")
 		}
 		println("got message from queue")
-		if !bytes.Equal(d.Body, testBody) {
+		if string(d.Body) != testID {
 			t.Fatalf("Invalid body: %s", string(d.Body))
 		}
 	case <-time.After(testInterval + testDelay):

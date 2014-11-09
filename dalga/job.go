@@ -1,22 +1,24 @@
 package dalga
 
 import (
-	"bytes"
 	"fmt"
 	"time"
 )
 
 type Job struct {
-	RoutingKey string
-	Body       []byte
-	Interval   time.Duration
-	NextRun    time.Time
+	primaryKey
+	Interval time.Duration
+	NextRun  time.Time
 }
 
-func NewJob(routingKey string, body []byte, interval uint32) *Job {
+type primaryKey struct {
+	ID         string
+	RoutingKey string
+}
+
+func NewJob(id, routingKey string, interval uint32) *Job {
 	job := Job{
-		RoutingKey: routingKey,
-		Body:       body,
+		primaryKey: primaryKey{id, routingKey},
 		Interval:   time.Duration(interval) * time.Second,
 	}
 	job.SetNewNextRun()
@@ -25,7 +27,7 @@ func NewJob(routingKey string, body []byte, interval uint32) *Job {
 
 // String implements Stringer interface. Returns the job in human-readable form.
 func (j *Job) String() string {
-	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.RoutingKey, string(j.Body), j.Interval/time.Second, j.NextRun.String()[:23])
+	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.ID, j.RoutingKey, j.Interval/time.Second, j.NextRun.String()[:23])
 }
 
 // Remaining returns the duration until the job's next scheduled time.
@@ -39,5 +41,5 @@ func (j *Job) SetNewNextRun() {
 }
 
 func (j *Job) Equal(k *Job) bool {
-	return (j.RoutingKey == k.RoutingKey) && (bytes.Compare(j.Body, k.Body) == 0)
+	return j.primaryKey == k.primaryKey
 }

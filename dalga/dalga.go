@@ -18,12 +18,12 @@ import (
 
 const createTableSQL = "" +
 	"CREATE TABLE `%s` (" +
+	"  `id`          VARCHAR(255)       NOT NULL," +
 	"  `routing_key` VARCHAR(255)    NOT NULL," +
-	"  `body`        BLOB(767)       NOT NULL," + // 767 is the max index size
-	"  `interval`    INT UNSIGNED    NOT NULL," + // 32-bit
+	"  `interval`    INT UNSIGNED    NOT NULL," +
 	"  `next_run`    DATETIME        NOT NULL," +
 	"" +
-	"  PRIMARY KEY (`routing_key`, `body`(767))," +
+	"  PRIMARY KEY (`id`, `routing_key`)," +
 	"  KEY `idx_next_run` (`next_run`)" +
 	") ENGINE=InnoDB DEFAULT CHARSET=utf8"
 
@@ -147,8 +147,8 @@ func (d *Dalga) CreateTable() error {
 	return nil
 }
 
-func (d *Dalga) Schedule(routingKey string, body []byte, interval uint32) error {
-	job := NewJob(routingKey, body, interval)
+func (d *Dalga) Schedule(id, routingKey string, interval uint32) error {
+	job := NewJob(id, routingKey, interval)
 
 	err := d.insert(job)
 	if err != nil {
@@ -173,13 +173,13 @@ func (d *Dalga) Schedule(routingKey string, body []byte, interval uint32) error 
 	return nil
 }
 
-func (d *Dalga) Cancel(routingKey string, body []byte) error {
-	err := d.delete(routingKey, body)
+func (d *Dalga) Cancel(id, routingKey string) error {
+	err := d.delete(id, routingKey)
 	if err != nil {
 		return err
 	}
 
-	job := Job{RoutingKey: routingKey, Body: body}
+	job := Job{primaryKey: primaryKey{id, routingKey}}
 
 	select {
 	case d.canceledJobs <- &job:
@@ -197,11 +197,11 @@ func (d *Dalga) front() (*Job, error) {
 	var interval uint32
 	var j Job
 
-	row := d.db.QueryRow("SELECT routing_key, body, `interval`, next_run " +
+	row := d.db.QueryRow("SELECT id, routing_key, `interval`, next_run " +
 		"FROM " + d.Config.MySQL.Table + " " +
 		"ORDER BY next_run ASC LIMIT 1")
 
-	err := row.Scan(&j.RoutingKey, &j.Body, &interval, &j.NextRun)
+	err := row.Scan(&j.ID, &j.RoutingKey, &interval, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
@@ -218,8 +218,8 @@ func (d *Dalga) publish(j *Job) error {
 	// Update next run time
 	_, err := d.db.Exec("UPDATE "+d.Config.MySQL.Table+" "+
 		"SET next_run=? "+
-		"WHERE routing_key=? AND body=?",
-		time.Now().UTC().Add(j.Interval), j.RoutingKey, j.Body)
+		"WHERE id=? AND routing_key=?",
+		time.Now().UTC().Add(j.Interval), j.ID, j.RoutingKey)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (d *Dalga) publish(j *Job) error {
 			"published_at": time.Now().UTC().String(),
 		},
 		ContentType:  "application/octet-stream",
-		Body:         j.Body,
+		Body:         []byte(j.ID),
 		DeliveryMode: amqp.Persistent,
 		Priority:     0,
 		Expiration:   strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
@@ -246,8 +246,8 @@ func (d *Dalga) publish(j *Job) error {
 	// Revert next run time
 	_, err = d.db.Exec("UPDATE "+d.Config.MySQL.Table+" "+
 		"SET next_run=? "+
-		"WHERE routing_key=? AND body=?",
-		j.NextRun, j.RoutingKey, j.Body)
+		"WHERE id=? AND routing_key=?",
+		j.NextRun, j.ID, j.RoutingKey)
 	return err
 }
 
@@ -255,19 +255,19 @@ func (d *Dalga) publish(j *Job) error {
 func (d *Dalga) insert(j *Job) error {
 	interval := j.Interval.Seconds()
 	_, err := d.db.Exec("INSERT INTO "+d.Config.MySQL.Table+" "+
-		"(routing_key, body, `interval`, next_run) "+
+		"(id, routing_key, `interval`, next_run) "+
 		"VALUES(?, ?, ?, ?) "+
 		"ON DUPLICATE KEY UPDATE "+
 		"next_run=DATE_ADD(next_run, INTERVAL (? - `interval`) SECOND), "+
 		"`interval`=?",
-		j.RoutingKey, j.Body, interval, j.NextRun, interval, interval)
+		j.ID, j.RoutingKey, interval, j.NextRun, interval, interval)
 	return err
 }
 
 // delete removes the job from the waiting queue.
-func (d *Dalga) delete(routingKey string, body []byte) error {
+func (d *Dalga) delete(id, routingKey string) error {
 	_, err := d.db.Exec("DELETE FROM "+d.Config.MySQL.Table+" "+
-		"WHERE routing_key=? AND body=?", routingKey, body)
+		"WHERE id=? AND routing_key=?", id, routingKey)
 	return err
 }
 
