@@ -1,8 +1,29 @@
 package dalga
 
-import (
-	"fmt"
-)
+import "fmt"
+
+var DefaultConfig = Config{
+	MySQL: mysqlConfig{
+		Host:     "localhost",
+		Port:     "3306",
+		DB:       "test",
+		Table:    "dalga",
+		User:     "root",
+		Password: "",
+	},
+	RabbitMQ: rabbitmqConfig{
+		Host:     "localhost",
+		Port:     "5672",
+		VHost:    "/",
+		Exchange: "",
+		User:     "guest",
+		Password: "guest",
+	},
+	HTTP: httpConfig{
+		Host: "0.0.0.0",
+		Port: "17500",
+	},
+}
 
 type Config struct {
 	MySQL    mysqlConfig
@@ -10,37 +31,13 @@ type Config struct {
 	HTTP     httpConfig
 }
 
-// NewConfig returns a pointer to a newly created Config initialized with default parameters.
-func NewConfig() *Config {
-	return &Config{
-		MySQL: mysqlConfig{
-			User:  "root",
-			Host:  "localhost",
-			Port:  "3306",
-			DB:    "test",
-			Table: "dalga",
-		},
-		RabbitMQ: rabbitmqConfig{
-			User:     "guest",
-			Password: "guest",
-			Host:     "localhost",
-			Port:     "5672",
-			VHost:    "/",
-		},
-		HTTP: httpConfig{
-			Host: "0.0.0.0",
-			Port: "17500",
-		},
-	}
-}
-
 type mysqlConfig struct {
-	User     string
-	Password string
 	Host     string
 	Port     string
 	DB       string
 	Table    string
+	User     string
+	Password string
 }
 
 func (c mysqlConfig) DSN() string {
@@ -48,12 +45,12 @@ func (c mysqlConfig) DSN() string {
 }
 
 type rabbitmqConfig struct {
-	User     string
-	Password string
 	Host     string
 	Port     string
 	VHost    string
 	Exchange string
+	User     string
+	Password string
 }
 
 func (c rabbitmqConfig) URL() string {
@@ -66,5 +63,5 @@ type httpConfig struct {
 }
 
 func (c httpConfig) Addr() string {
-	return c.Host + ":" + c.Port
+	return fmt.Sprintf("%s:%s", c.Host, c.Port)
 }

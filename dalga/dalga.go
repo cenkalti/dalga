@@ -25,7 +25,7 @@ const createTableSQL = "" +
 	"  KEY `idx_next_run` (`next_run`)" +
 	") ENGINE=InnoDB DEFAULT CHARSET=utf8"
 
-var debugging = flag.Bool("d", false, "turn on debug messages")
+var debugging = flag.Bool("debug", false, "turn on debug messages")
 
 func debug(args ...interface{}) {
 	if *debugging || os.Getenv("DALGA_DEBUG") != "" {
@@ -34,7 +34,7 @@ func debug(args ...interface{}) {
 }
 
 type Dalga struct {
-	Config            *Config
+	Config            Config
 	db                *sql.DB
 	rabbit            *amqp.Connection
 	channel           *amqp.Channel
@@ -45,7 +45,7 @@ type Dalga struct {
 	publisherFinished chan bool
 }
 
-func NewDalga(config *Config) *Dalga {
+func New(config Config) *Dalga {
 	return &Dalga{
 		Config:            config,
 		newJobs:           make(chan *Job),
