@@ -32,18 +32,19 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
 
 	intervalUint64, err := strconv.ParseUint(intervalString, 10, 32)
 	if err != nil {
-		http.Error(w, "Cannot parse interval", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if intervalUint64 < 1 {
-		http.Error(w, "interval must be >= 1", http.StatusBadRequest)
+	if intervalUint64 == 0 {
+		http.Error(w, "interval can't be 0", http.StatusBadRequest)
 		return
 	}
 
 	err = d.Schedule(id, routingKey, uint32(intervalUint64))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -55,5 +56,6 @@ func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request) {
 	err := d.Cancel(id, routingKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
