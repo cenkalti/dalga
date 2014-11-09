@@ -18,7 +18,7 @@ var (
 )
 
 func TestSchedule(t *testing.T) {
-	config := NewConfig() // default config
+	config := DefaultConfig
 
 	db, err := sql.Open("mysql", config.MySQL.DSN())
 	if err != nil {
@@ -74,7 +74,7 @@ func TestSchedule(t *testing.T) {
 
 	println("deleted queue")
 
-	d := NewDalga(config)
+	d := New(config)
 
 	err = d.CreateTable()
 	if err != nil {

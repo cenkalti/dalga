@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 
 	"github.com/cenkalti/dalga/dalga"
 )
@@ -45,6 +47,13 @@ func main() {
 		fmt.Println("Table created successfully")
 		return
 	}
+
+	interruptC := make(chan os.Signal)
+	signal.Notify(interruptC, os.Interrupt)
+	go func() {
+		<-interruptC
+		d.Shutdown()
+	}()
 
 	// Run Dalga
 	if err := d.Run(); err != nil {
