@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	_ "github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
+	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
 	"github.com/cenkalti/dalga/vendor/github.com/streadway/amqp"
 )
 
@@ -297,6 +297,8 @@ func (d *Dalga) publisher() {
 				log.Println(err)
 				time.Sleep(time.Duration(1) * time.Second)
 				continue
+			} else if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1146 { // Table doesn't exist
+				log.Fatal(myErr)
 			}
 
 			debug("No waiting jobs in the queue")
