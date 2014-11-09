@@ -38,7 +38,6 @@ func debug(args ...interface{}) {
 type Dalga struct {
 	Config            Config
 	db                *sql.DB
-	rabbit            *amqp.Connection
 	channel           *amqp.Channel
 	listener          net.Listener
 	newJobs           chan *Job
@@ -108,41 +107,44 @@ func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	err = db.Ping()
-	if err != nil {
+	if err = db.Ping(); err != nil {
 		return nil, err
 	}
-
 	log.Println("Connected to MySQL")
 	return db, nil
 }
 
 func (d *Dalga) connectMQ() error {
-	var err error
-
-	d.rabbit, err = amqp.Dial(d.Config.RabbitMQ.URL())
+	conn, err := amqp.Dial(d.Config.RabbitMQ.URL())
 	if err != nil {
 		return err
 	}
-
-	d.channel, err = d.rabbit.Channel()
-	if err != nil {
-		return err
-	}
+	log.Println("Connected to RabbitMQ")
 
 	// Exit program when AMQP connection is closed.
-	connectionClosed := make(chan *amqp.Error)
-	d.rabbit.NotifyClose(connectionClosed)
+	connClosed := make(chan *amqp.Error)
+	conn.NotifyClose(connClosed)
 	go func() {
-		err, ok := <-connectionClosed
-		if ok {
+		if err, ok := <-connClosed; ok {
 			log.Fatal(err)
 		}
 	}()
 
-	log.Println("Connected to RabbitMQ")
-	return err
+	d.channel, err = conn.Channel()
+	if err != nil {
+		return err
+	}
+
+	// Log undelivered messages.
+	returns := make(chan amqp.Return)
+	d.channel.NotifyReturn(returns)
+	go func() {
+		for r := range returns {
+			log.Printf("%d: %s exchange=%q routing-key=%q", r.ReplyCode, r.ReplyText, r.Exchange, r.RoutingKey)
+		}
+	}()
+
+	return nil
 }
 
 func (d *Dalga) CreateTable() error {
@@ -241,17 +243,15 @@ func (d *Dalga) publish(j *Job) error {
 		Expiration:   strconv.FormatFloat(j.Interval.Seconds(), 'f', 0, 64) + "000",
 	})
 
-	if err == nil { // Published successfully
-		return nil
+	if err != nil {
+		log.Print(err)
+		// Revert next run time
+		d.db.Exec("UPDATE "+d.Config.MySQL.Table+" "+
+			"SET next_run=? "+
+			"WHERE id=? AND routing_key=?",
+			j.NextRun, j.ID, j.RoutingKey)
 	}
 
-	log.Println(err)
-
-	// Revert next run time
-	_, err = d.db.Exec("UPDATE "+d.Config.MySQL.Table+" "+
-		"SET next_run=? "+
-		"WHERE id=? AND routing_key=?",
-		j.NextRun, j.ID, j.RoutingKey)
 	return err
 }
 
