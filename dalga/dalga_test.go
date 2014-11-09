@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
-	"github.com/streadway/amqp"
+	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
+	"github.com/cenkalti/dalga/vendor/github.com/streadway/amqp"
 )
 
 var (

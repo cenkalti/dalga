@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/streadway/amqp"
+	_ "github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
+	"github.com/cenkalti/dalga/vendor/github.com/streadway/amqp"
 )
 
 const createTableSQL = "" +
