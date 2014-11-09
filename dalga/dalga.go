@@ -127,6 +127,20 @@ func (d *Dalga) connectMQ() error {
 	}
 
 	d.channel, err = d.rabbit.Channel()
+	if err != nil {
+		return err
+	}
+
+	// Exit program when AMQP connection is closed.
+	connectionClosed := make(chan *amqp.Error)
+	d.rabbit.NotifyClose(connectionClosed)
+	go func() {
+		err, ok := <-connectionClosed
+		if ok {
+			log.Fatal(err)
+		}
+	}()
+
 	log.Println("Connected to RabbitMQ")
 	return err
 }
@@ -140,11 +154,7 @@ func (d *Dalga) CreateTable() error {
 
 	sql := fmt.Sprintf(createTableSQL, d.Config.MySQL.Table)
 	_, err = db.Exec(sql)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (d *Dalga) Schedule(id, routingKey string, interval uint32) error {
@@ -225,16 +235,10 @@ func (d *Dalga) publish(j *Job) error {
 	}
 
 	// Send a message to RabbitMQ
-	err = d.channel.Publish(d.Config.RabbitMQ.Exchange, j.RoutingKey, false, false, amqp.Publishing{
-		Headers: amqp.Table{
-			"interval":     j.Interval.Seconds(),
-			"published_at": time.Now().UTC().String(),
-		},
-		ContentType:  "application/octet-stream",
+	err = d.channel.Publish(d.Config.RabbitMQ.Exchange, j.RoutingKey, true, false, amqp.Publishing{
 		Body:         []byte(j.ID),
 		DeliveryMode: amqp.Persistent,
-		Priority:     0,
-		Expiration:   strconv.FormatUint(uint64(j.Interval.Seconds()), 10) + "000",
+		Expiration:   strconv.FormatFloat(j.Interval.Seconds(), 'f', 0, 64) + "000",
 	})
 
 	if err == nil { // Published successfully
@@ -277,7 +281,7 @@ func (d *Dalga) publisher() {
 		err := d.publish(j)
 		if err != nil {
 			log.Println(err)
-			time.Sleep(time.Duration(1) * time.Second)
+			time.Sleep(time.Second)
 		}
 	}
 
@@ -295,7 +299,7 @@ func (d *Dalga) publisher() {
 		if err != nil {
 			if err != sql.ErrNoRows {
 				log.Println(err)
-				time.Sleep(time.Duration(1) * time.Second)
+				time.Sleep(time.Second)
 				continue
 			} else if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1146 { // Table doesn't exist
 				log.Fatal(myErr)
