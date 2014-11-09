@@ -3,3 +3,4 @@ go: 1.3.3
 services:
   - rabbitmq
   - mysql
+script: go test -v ./dalga
