@@ -35,8 +35,8 @@ func TestSchedule(t *testing.T) {
 
 	println("connected to db")
 
-	sql := "DROP TABLE " + config.MySQL.Table
-	_, err = db.Exec(sql)
+	drop_sql := "DROP TABLE " + config.MySQL.Table
+	_, err = db.Exec(drop_sql)
 	if err != nil {
 		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
 			t.Fatal(err)
@@ -123,4 +123,7 @@ func TestSchedule(t *testing.T) {
 	case <-time.After(testInterval + testDelay):
 		t.Fatal("timeout")
 	}
+
+	// Cleanup
+	db.Exec(drop_sql)
 }

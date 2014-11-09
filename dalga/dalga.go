@@ -1,5 +1,7 @@
 package dalga
 
+// TODO refactor publisher wait/notify
+
 import (
 	"database/sql"
 	"flag"
@@ -91,6 +93,7 @@ func (d *Dalga) Run() error {
 }
 
 func (d *Dalga) Shutdown() error {
+	// TODO stop goroutines
 	return d.listener.Close()
 }
 
