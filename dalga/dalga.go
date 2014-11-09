@@ -1,6 +1,8 @@
 package dalga
 
 // TODO refactor publisher wait/notify
+// TODO urldecode id on http
+// TODO update readme
 
 import (
 	"database/sql"
