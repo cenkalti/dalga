@@ -3,4 +3,5 @@ go: 1.3.3
 services:
   - rabbitmq
   - mysql
+before_script: mysql -e 'create database test;'
 script: go test -v ./dalga
