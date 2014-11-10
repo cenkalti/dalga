@@ -6,7 +6,6 @@ package dalga
 import (
 	"database/sql"
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"strconv"
@@ -15,17 +14,6 @@ import (
 	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
 	"github.com/cenkalti/dalga/vendor/github.com/streadway/amqp"
 )
-
-const createTableSQL = "" +
-	"CREATE TABLE `%s` (" +
-	"  `id`          VARCHAR(255)       NOT NULL," +
-	"  `routing_key` VARCHAR(255)    NOT NULL," +
-	"  `interval`    INT UNSIGNED    NOT NULL," +
-	"  `next_run`    DATETIME        NOT NULL," +
-	"" +
-	"  PRIMARY KEY (`id`, `routing_key`)," +
-	"  KEY `idx_next_run` (`next_run`)" +
-	") ENGINE=InnoDB DEFAULT CHARSET=utf8"
 
 var debugging = flag.Bool("debug", false, "turn on debug messages")
 
@@ -37,7 +25,7 @@ func debug(args ...interface{}) {
 
 type Dalga struct {
 	Config            Config
-	db                *sql.DB
+	table             *table
 	channel           *amqp.Channel
 	listener          net.Listener
 	newJobs           chan *Job
@@ -97,21 +85,16 @@ func (d *Dalga) Shutdown() error {
 }
 
 func (d *Dalga) connectDB() error {
-	var err error
-	d.db, err = d.newMySQLConnection()
-	return err
-}
-
-func (d *Dalga) newMySQLConnection() (*sql.DB, error) {
 	db, err := sql.Open("mysql", d.Config.MySQL.DSN())
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if err = db.Ping(); err != nil {
-		return nil, err
+		return err
 	}
 	log.Println("Connected to MySQL")
-	return db, nil
+	d.table = &table{db, d.Config.MySQL.Table}
+	return nil
 }
 
 func (d *Dalga) connectMQ() error {
@@ -148,22 +131,19 @@ func (d *Dalga) connectMQ() error {
 }
 
 func (d *Dalga) CreateTable() error {
-	db, err := d.newMySQLConnection()
+	db, err := sql.Open("mysql", d.Config.MySQL.DSN())
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-
-	sql := fmt.Sprintf(createTableSQL, d.Config.MySQL.Table)
-	_, err = db.Exec(sql)
-	return err
+	t := &table{db, d.Config.MySQL.Table}
+	return t.Create()
 }
 
 func (d *Dalga) Schedule(id, routingKey string, interval uint32) error {
 	job := NewJob(id, routingKey, interval)
 
-	err := d.insert(job)
-	if err != nil {
+	if err := d.table.Insert(job); err != nil {
 		return err
 	}
 
@@ -186,8 +166,7 @@ func (d *Dalga) Schedule(id, routingKey string, interval uint32) error {
 }
 
 func (d *Dalga) Cancel(id, routingKey string) error {
-	err := d.delete(id, routingKey)
-	if err != nil {
+	if err := d.table.Delete(id, routingKey); err != nil {
 		return err
 	}
 
@@ -204,75 +183,22 @@ func (d *Dalga) Cancel(id, routingKey string) error {
 	return nil
 }
 
-// front returns the first job to be run in the queue.
-func (d *Dalga) front() (*Job, error) {
-	var interval uint32
-	var j Job
-
-	row := d.db.QueryRow("SELECT id, routing_key, `interval`, next_run " +
-		"FROM " + d.Config.MySQL.Table + " " +
-		"ORDER BY next_run ASC LIMIT 1")
-
-	err := row.Scan(&j.ID, &j.RoutingKey, &interval, &j.NextRun)
-	if err != nil {
-		return nil, err
-	}
-
-	j.Interval = time.Duration(interval) * time.Second
-	return &j, nil
-}
-
 // publish sends a message to exchange defined in the config and
 // updates the Job's next run time on the database.
 func (d *Dalga) publish(j *Job) error {
 	debug("publish", *j)
 
-	// Update next run time
-	_, err := d.db.Exec("UPDATE "+d.Config.MySQL.Table+" "+
-		"SET next_run=? "+
-		"WHERE id=? AND routing_key=?",
-		time.Now().UTC().Add(j.Interval), j.ID, j.RoutingKey)
-	if err != nil {
-		return err
-	}
-
 	// Send a message to RabbitMQ
-	err = d.channel.Publish(d.Config.RabbitMQ.Exchange, j.RoutingKey, true, false, amqp.Publishing{
+	err := d.channel.Publish(d.Config.RabbitMQ.Exchange, j.RoutingKey, true, false, amqp.Publishing{
 		Body:         []byte(j.ID),
 		DeliveryMode: amqp.Persistent,
 		Expiration:   strconv.FormatFloat(j.Interval.Seconds(), 'f', 0, 64) + "000",
 	})
-
 	if err != nil {
-		log.Print(err)
-		// Revert next run time
-		d.db.Exec("UPDATE "+d.Config.MySQL.Table+" "+
-			"SET next_run=? "+
-			"WHERE id=? AND routing_key=?",
-			j.NextRun, j.ID, j.RoutingKey)
+		return err
 	}
 
-	return err
-}
-
-// insert puts the job to the waiting queue.
-func (d *Dalga) insert(j *Job) error {
-	interval := j.Interval.Seconds()
-	_, err := d.db.Exec("INSERT INTO "+d.Config.MySQL.Table+" "+
-		"(id, routing_key, `interval`, next_run) "+
-		"VALUES(?, ?, ?, ?) "+
-		"ON DUPLICATE KEY UPDATE "+
-		"next_run=DATE_ADD(next_run, INTERVAL (? - `interval`) SECOND), "+
-		"`interval`=?",
-		j.ID, j.RoutingKey, interval, j.NextRun, interval, interval)
-	return err
-}
-
-// delete removes the job from the waiting queue.
-func (d *Dalga) delete(id, routingKey string) error {
-	_, err := d.db.Exec("DELETE FROM "+d.Config.MySQL.Table+" "+
-		"WHERE id=? AND routing_key=?", id, routingKey)
-	return err
+	return d.table.UpdateNextRun(j)
 }
 
 // publisher runs a loop that reads the next Job from the queue and publishes it.
@@ -295,7 +221,7 @@ func (d *Dalga) publisher() {
 		default:
 		}
 
-		job, err := d.front()
+		job, err := d.table.Front()
 		if err != nil {
 			if err != sql.ErrNoRows {
 				log.Println(err)
