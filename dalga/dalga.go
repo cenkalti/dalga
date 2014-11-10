@@ -227,7 +227,8 @@ func (d *Dalga) publisher() {
 				log.Println(err)
 				time.Sleep(time.Second)
 				continue
-			} else if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1146 { // Table doesn't exist
+			} else if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1146 {
+				// Table doesn't exist
 				log.Fatal(myErr)
 			}
 
