@@ -32,7 +32,7 @@ func (j *Job) String() string {
 
 // Remaining returns the duration until the job's next scheduled time.
 func (j *Job) Remaining() time.Duration {
-	return -time.Since(j.NextRun)
+	return j.NextRun.Sub(time.Now().UTC())
 }
 
 // SetNewNextRun calculates the new run time according to current time and sets it on the job.

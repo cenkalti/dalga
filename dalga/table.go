@@ -51,16 +51,13 @@ func (t *table) Delete(id, routingKey string) error {
 func (t *table) Front() (*Job, error) {
 	var interval uint32
 	var j Job
-
 	row := t.db.QueryRow("SELECT id, routing_key, `interval`, next_run " +
 		"FROM " + t.name + " " +
 		"ORDER BY next_run ASC LIMIT 1")
-
 	err := row.Scan(&j.ID, &j.RoutingKey, &interval, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
-
 	j.Interval = time.Duration(interval) * time.Second
 	return &j, nil
 }
