@@ -246,7 +246,6 @@ func (d *Dalga) publisher() {
 			}
 		} else {
 			remaining := job.Remaining()
-			// TODO check if remaining is negative
 			after = time.After(remaining)
 
 			debug("Next job:", job, "Remaining:", remaining)
