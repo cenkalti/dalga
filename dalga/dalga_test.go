@@ -1,7 +1,12 @@
 package dalga
 
 import (
+	"bytes"
 	"database/sql"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,10 +15,10 @@ import (
 )
 
 var (
-	testKey      = "testKey"
-	testID       = "class:1"
-	testInterval = time.Second
-	testDelay    = time.Second
+	testRoutingKey  = "testRoutingKey"
+	testDescription = "jobDescription"
+	testInterval    = time.Second
+	testDelay       = time.Second
 )
 
 func TestSchedule(t *testing.T) {
@@ -58,7 +63,7 @@ func TestSchedule(t *testing.T) {
 
 	println("connected to mq")
 
-	_, err = channel.QueueDelete(testKey, false, false, false)
+	_, err = channel.QueueDelete(testRoutingKey, false, false, false)
 	if err != nil {
 		if mqErr, ok := err.(*amqp.Error); !ok || mqErr.Code != 404 { // NOT_FOUND
 			t.Fatal(err)
@@ -82,7 +87,7 @@ func TestSchedule(t *testing.T) {
 
 	println("created table")
 
-	_, err = channel.QueueDeclare(testKey, false, false, false, false, nil)
+	_, err = channel.QueueDeclare(testRoutingKey, false, false, false, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,14 +104,30 @@ func TestSchedule(t *testing.T) {
 
 	<-d.NotifyReady()
 
-	err = d.Schedule(testID, testKey, uint32(testInterval/time.Second))
+	values := make(url.Values)
+	values.Set("interval", strconv.Itoa(int(testInterval/time.Second)))
+
+	endpoint := "http://" + config.HTTP.Addr() + "/jobs/" + testRoutingKey + "/" + testDescription
+	req, err := http.NewRequest("PUT", endpoint, strings.NewReader(values.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	var client http.Client
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("Cannot schedule new job: %s", err.Error())
+	}
+	if resp.StatusCode != 201 {
+		var buf bytes.Buffer
+		buf.ReadFrom(resp.Body)
+		t.Fatalf("Unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
 	}
 
 	println("scheduled job")
 
-	deliveries, err := channel.Consume(testKey, "", false, true, false, false, nil)
+	deliveries, err := channel.Consume(testRoutingKey, "", false, true, false, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +138,7 @@ func TestSchedule(t *testing.T) {
 			t.Fatal("Consumer closed")
 		}
 		println("got message from queue")
-		if string(d.Body) != testID {
+		if string(d.Body) != testDescription {
 			t.Fatalf("Invalid body: %s", string(d.Body))
 		}
 	case <-time.After(testInterval + testDelay):

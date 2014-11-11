@@ -1,6 +1,5 @@
 package dalga
 
-// TODO restful interface
 // TODO one-off jobs
 // TODO update readme
 // TODO implement raft consensus
@@ -163,11 +162,11 @@ func (d *Dalga) CreateTable() error {
 	return t.Create()
 }
 
-func (d *Dalga) Schedule(id, routingKey string, interval uint32) error {
+func (d *Dalga) Schedule(id, routingKey string, interval uint32) (updated bool, err error) {
 	job := NewJob(id, routingKey, interval)
 
-	if err := d.table.Insert(job); err != nil {
-		return err
+	if updated, err = d.table.Insert(job); err != nil {
+		return
 	}
 
 	// Wake up the publisher.
@@ -182,7 +181,7 @@ func (d *Dalga) Schedule(id, routingKey string, interval uint32) error {
 	}
 
 	debug("Job is scheduled:", job)
-	return nil
+	return
 }
 
 func (d *Dalga) Cancel(id, routingKey string) error {

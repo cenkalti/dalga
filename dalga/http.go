@@ -32,13 +32,17 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = d.Schedule(description, routingKey, uint32(intervalUint64))
+	updated, err := d.Schedule(description, routingKey, uint32(intervalUint64))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// TODO send restful status code
+	if updated {
+		w.WriteHeader(http.StatusNoContent)
+	} else {
+		w.WriteHeader(http.StatusCreated)
+	}
 }
 
 func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request) {
@@ -53,5 +57,5 @@ func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO send restful status code
+	w.WriteHeader(http.StatusNoContent)
 }

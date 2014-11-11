@@ -28,17 +28,25 @@ func (t *table) Create() error {
 	return err
 }
 
-// Insert job to to scheduler table.
-func (t *table) Insert(j *Job) error {
+// Insert the job to to scheduler table.
+func (t *table) Insert(j *Job) (updated bool, err error) {
 	interval := j.Interval.Seconds()
-	_, err := t.db.Exec("INSERT INTO "+t.name+" "+
+	result, err := t.db.Exec("INSERT INTO "+t.name+" "+
 		"(job, routing_key, `interval`, next_run) "+
 		"VALUES(?, ?, ?, ?) "+
 		"ON DUPLICATE KEY UPDATE "+
 		"next_run=DATE_ADD(next_run, INTERVAL (? - `interval`) SECOND), "+
 		"`interval`=?",
 		j.Description, j.RoutingKey, interval, j.NextRun, interval, interval)
-	return err
+	if err != nil {
+		return
+	}
+	ra, err := result.RowsAffected()
+	if err != nil {
+		return
+	}
+	updated = (ra == 2)
+	return
 }
 
 // Delete the job from scheduler table.
