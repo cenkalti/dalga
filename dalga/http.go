@@ -3,23 +3,28 @@ package dalga
 import (
 	"net/http"
 	"strconv"
+
+	// TODO vendorize gorilla/mux
+	"github.com/bmizerany/pat"
 )
 
 func (d *Dalga) serveHTTP() error {
-	handler := http.NewServeMux()
-	handler.HandleFunc("/schedule", d.handleSchedule)
-	handler.HandleFunc("/cancel", d.handleCancel)
-	return http.Serve(d.listener, handler)
+	m := pat.New()
+	m.Put("/jobs/:routing_key/:description", http.HandlerFunc(d.handleSchedule))
+	m.Del("/jobs/:routing_key/:description", http.HandlerFunc(d.handleCancel))
+	return http.Serve(d.listener, m)
 }
 
-// hadleSchedule is the web server endpoint for path: /schedule
 func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
-	job, routingKey, intervalString := r.FormValue("job"), r.FormValue("routing_key"), r.FormValue("interval")
-	debug("/schedule", job, routingKey, intervalString)
+	routingKey := r.URL.Query().Get(":routing_key")
+	description := r.URL.Query().Get(":description")
+	intervalString := r.FormValue("interval")
+
+	debug("http: schedule", r.RequestURI, intervalString)
 
 	intervalUint64, err := strconv.ParseUint(intervalString, 10, 32)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "cannot parse interval", http.StatusBadRequest)
 		return
 	}
 
@@ -28,21 +33,26 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = d.Schedule(job, routingKey, uint32(intervalUint64))
+	err = d.Schedule(description, routingKey, uint32(intervalUint64))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// TODO send restful status code
 }
 
-// handleCancel is the web server endpoint for path: /cancel
 func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request) {
-	job, routingKey := r.FormValue("job"), r.FormValue("routing_key")
-	debug("/cancel", job, routingKey)
+	routingKey := r.URL.Query().Get(":routing_key")
+	description := r.URL.Query().Get(":description")
 
-	err := d.Cancel(job, routingKey)
+	debug("http: cancel", r.RequestURI)
+
+	err := d.Cancel(description, routingKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// TODO send restful status code
 }
