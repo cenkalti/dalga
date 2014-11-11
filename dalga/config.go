@@ -20,8 +20,8 @@ var DefaultConfig = Config{
 		Password: "guest",
 	},
 	HTTP: httpConfig{
-		Host: "0.0.0.0",
-		Port: "17500",
+		Host: "127.0.0.1",
+		Port: "34006",
 	},
 }
 

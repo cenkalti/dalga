@@ -73,6 +73,7 @@ func (d *Dalga) Run() error {
 	if err != nil {
 		return err
 	}
+	log.Println("Listening", d.listener.Addr())
 
 	close(d.ready)
 
