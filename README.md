@@ -51,8 +51,8 @@ All configuration is done with command line flags:
     Usage dalga:
       -create-table=false: create table for storing jobs
       -debug=false: turn on debug messages
-      -http-host="0.0.0.0":
-      -http-port="17500":
+      -http-host="127.0.0.1":
+      -http-port="34006":
       -mysql-db="test":
       -mysql-host="localhost":
       -mysql-password="":
