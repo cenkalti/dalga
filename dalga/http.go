@@ -4,8 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	// TODO vendorize gorilla/mux
-	"github.com/bmizerany/pat"
+	"github.com/cenkalti/dalga/vendor/github.com/bmizerany/pat"
 )
 
 func (d *Dalga) serveHTTP() error {
