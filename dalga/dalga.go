@@ -1,6 +1,5 @@
 package dalga
 
-// TODO rename id to job and change limit to 65535
 // TODO put a lock on table while working on it
 // TODO update readme
 // TODO implement raft consensus
@@ -206,7 +205,7 @@ func (d *Dalga) publish(j *Job) error {
 
 	// Send a message to RabbitMQ
 	err := d.channel.Publish(d.config.RabbitMQ.Exchange, j.RoutingKey, true, false, amqp.Publishing{
-		Body:         []byte(j.ID),
+		Body:         []byte(j.Description),
 		DeliveryMode: amqp.Persistent,
 		Expiration:   strconv.FormatFloat(j.Interval.Seconds(), 'f', 0, 64) + "000",
 	})
@@ -240,6 +239,7 @@ func (d *Dalga) publisher() {
 			}
 		} else {
 			remaining := job.Remaining()
+			// TODO check if remaining is negative
 			after = time.After(remaining)
 
 			debug("Next job:", job, "Remaining:", remaining)

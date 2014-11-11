@@ -12,22 +12,22 @@ type Job struct {
 }
 
 type primaryKey struct {
-	ID         string
-	RoutingKey string
+	Description string
+	RoutingKey  string
 }
 
-func NewJob(id, routingKey string, interval uint32) *Job {
-	job := Job{
-		primaryKey: primaryKey{id, routingKey},
+func NewJob(description, routingKey string, interval uint32) *Job {
+	j := Job{
+		primaryKey: primaryKey{description, routingKey},
 		Interval:   time.Duration(interval) * time.Second,
 	}
-	job.SetNewNextRun()
-	return &job
+	j.SetNewNextRun()
+	return &j
 }
 
 // String implements Stringer interface. Returns the job in human-readable form.
 func (j *Job) String() string {
-	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.ID, j.RoutingKey, j.Interval/time.Second, j.NextRun.String()[:23])
+	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.Description, j.RoutingKey, j.Interval/time.Second, j.NextRun.String()[:23])
 }
 
 // Remaining returns the duration until the job's next scheduled time.

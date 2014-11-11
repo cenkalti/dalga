@@ -13,12 +13,12 @@ type table struct {
 
 const createTableSQL = "" +
 	"CREATE TABLE `%s` (" +
-	"  `id`          VARCHAR(255)       NOT NULL," +
+	"  `job`         VARCHAR(65535)  NOT NULL," +
 	"  `routing_key` VARCHAR(255)    NOT NULL," +
 	"  `interval`    INT UNSIGNED    NOT NULL," +
 	"  `next_run`    DATETIME        NOT NULL," +
 	"" +
-	"  PRIMARY KEY (`id`, `routing_key`)," +
+	"  PRIMARY KEY (`job`, `routing_key`)," +
 	"  KEY `idx_next_run` (`next_run`)" +
 	") ENGINE=InnoDB DEFAULT CHARSET=utf8"
 
@@ -32,18 +32,18 @@ func (t *table) Create() error {
 func (t *table) Insert(j *Job) error {
 	interval := j.Interval.Seconds()
 	_, err := t.db.Exec("INSERT INTO "+t.name+" "+
-		"(id, routing_key, `interval`, next_run) "+
+		"(job, routing_key, `interval`, next_run) "+
 		"VALUES(?, ?, ?, ?) "+
 		"ON DUPLICATE KEY UPDATE "+
 		"next_run=DATE_ADD(next_run, INTERVAL (? - `interval`) SECOND), "+
 		"`interval`=?",
-		j.ID, j.RoutingKey, interval, j.NextRun, interval, interval)
+		j.Description, j.RoutingKey, interval, j.NextRun, interval, interval)
 	return err
 }
 
 // Delete the job from scheduler table.
-func (t *table) Delete(id, routingKey string) error {
-	_, err := t.db.Exec("DELETE FROM "+t.name+" "+"WHERE id=? AND routing_key=?", id, routingKey)
+func (t *table) Delete(job, routingKey string) error {
+	_, err := t.db.Exec("DELETE FROM "+t.name+" "+"WHERE job=? AND routing_key=?", job, routingKey)
 	return err
 }
 
@@ -51,10 +51,10 @@ func (t *table) Delete(id, routingKey string) error {
 func (t *table) Front() (*Job, error) {
 	var interval uint32
 	var j Job
-	row := t.db.QueryRow("SELECT id, routing_key, `interval`, next_run " +
+	row := t.db.QueryRow("SELECT job, routing_key, `interval`, next_run " +
 		"FROM " + t.name + " " +
 		"ORDER BY next_run ASC LIMIT 1")
-	err := row.Scan(&j.ID, &j.RoutingKey, &interval, &j.NextRun)
+	err := row.Scan(&j.Description, &j.RoutingKey, &interval, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (t *table) Front() (*Job, error) {
 func (t *table) UpdateNextRun(j *Job) error {
 	_, err := t.db.Exec("UPDATE "+t.name+" "+
 		"SET next_run=? "+
-		"WHERE id=? AND routing_key=?",
-		time.Now().UTC().Add(j.Interval), j.ID, j.RoutingKey)
+		"WHERE job=? AND routing_key=?",
+		time.Now().UTC().Add(j.Interval), j.Description, j.RoutingKey)
 	return err
 }

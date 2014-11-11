@@ -14,8 +14,8 @@ func (d *Dalga) serveHTTP() error {
 
 // hadleSchedule is the web server endpoint for path: /schedule
 func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
-	id, routingKey, intervalString := r.FormValue("id"), r.FormValue("routing_key"), r.FormValue("interval")
-	debug("/schedule", id, routingKey, intervalString)
+	job, routingKey, intervalString := r.FormValue("job"), r.FormValue("routing_key"), r.FormValue("interval")
+	debug("/schedule", job, routingKey, intervalString)
 
 	intervalUint64, err := strconv.ParseUint(intervalString, 10, 32)
 	if err != nil {
@@ -28,7 +28,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = d.Schedule(id, routingKey, uint32(intervalUint64))
+	err = d.Schedule(job, routingKey, uint32(intervalUint64))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -37,10 +37,10 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
 
 // handleCancel is the web server endpoint for path: /cancel
 func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request) {
-	id, routingKey := r.FormValue("id"), r.FormValue("routing_key")
-	debug("/cancel", id, routingKey)
+	job, routingKey := r.FormValue("job"), r.FormValue("routing_key")
+	debug("/cancel", job, routingKey)
 
-	err := d.Cancel(id, routingKey)
+	err := d.Cancel(job, routingKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
