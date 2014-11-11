@@ -38,17 +38,16 @@ func (j *Job) SetNewNextRun() {
 	j.NextRun = time.Now().UTC().Add(j.Interval)
 }
 
-// TODO remove this and use tags in main struct
 func (j *Job) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Job        string        `json:"job"`
 		RoutingKey string        `json:"routing_key"`
 		Interval   time.Duration `json:"interval"`
-		NextRun    time.Time     `json:"next_run"`
+		NextRun    string        `json:"next_run"`
 	}{
 		Job:        j.Description,
 		RoutingKey: j.RoutingKey,
 		Interval:   j.Interval / time.Second,
-		NextRun:    j.NextRun,
+		NextRun:    j.NextRun.Format(time.RFC3339),
 	})
 }
