@@ -47,30 +47,30 @@ Run
 
 All configuration is done with command line flags:
 
-```
-$ dalga -h
-Usage dalga:
-  -create-table=false: create table for storing jobs
-  -debug=false: turn on debug messages
-  -http-host="0.0.0.0":
-  -http-port="17500":
-  -mysql-db="test":
-  -mysql-host="localhost":
-  -mysql-password="":
-  -mysql-port="3306":
-  -mysql-table="dalga":
-  -mysql-user="root":
-  -rabbitmq-exchange="":
-  -rabbitmq-host="localhost":
-  -rabbitmq-password="guest":
-  -rabbitmq-port="5672":
-  -rabbitmq-user="guest":
-  -rabbitmq-vhost="/":
-```
+
+    $ dalga -h
+    Usage dalga:
+      -create-table=false: create table for storing jobs
+      -debug=false: turn on debug messages
+      -http-host="0.0.0.0":
+      -http-port="17500":
+      -mysql-db="test":
+      -mysql-host="localhost":
+      -mysql-password="":
+      -mysql-port="3306":
+      -mysql-table="dalga":
+      -mysql-user="root":
+      -rabbitmq-exchange="":
+      -rabbitmq-host="localhost":
+      -rabbitmq-password="guest":
+      -rabbitmq-port="5672":
+      -rabbitmq-user="guest":
+      -rabbitmq-vhost="/":
+
 
 To create the table for storing jobs:
 
-    $ dalga -t
+    $ dalga -create-table
 
 Then, run the server:
 
@@ -81,7 +81,7 @@ HTTP API
 
 Schedule a new job to run every 60 seconds:
 
-    curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1?interval=60'
+    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1?interval=60'
     HTTP/1.1 201 Created
     Date: Tue, 11 Nov 2014 17:25:08 GMT
     Content-Length: 0
@@ -89,12 +89,12 @@ Schedule a new job to run every 60 seconds:
 
 Update the interval of existing job:
 
-    curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1?interval=15'
+    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1?interval=15'
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 17:26:02 GMT
 
 Cancel previously scheduled job:
 
-    curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1'
+    $ curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1'
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 17:26:50 GMT
