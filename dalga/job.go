@@ -7,21 +7,17 @@ import (
 )
 
 type Job struct {
-	primaryKey
-	Interval time.Duration
-	NextRun  time.Time
-}
-
-// TODO remove primaryKey struct
-type primaryKey struct {
 	Description string
 	RoutingKey  string
+	Interval    time.Duration
+	NextRun     time.Time
 }
 
 func NewJob(description, routingKey string, interval uint32) *Job {
 	j := Job{
-		primaryKey: primaryKey{description, routingKey},
-		Interval:   time.Duration(interval) * time.Second,
+		Description: description,
+		RoutingKey:  routingKey,
+		Interval:    time.Duration(interval) * time.Second,
 	}
 	j.SetNewNextRun()
 	return &j

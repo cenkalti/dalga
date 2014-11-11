@@ -183,7 +183,7 @@ func (d *Dalga) Reschedule(description, routingKey string, interval uint32) (*Jo
 		return nil, err
 	}
 	d.notifyPublisher("job rescheduled")
-	debug("Job interval is updated:", Job{primaryKey: primaryKey{description, routingKey}})
+	debug("Job interval is updated:", job)
 	return job, nil
 }
 
@@ -193,7 +193,7 @@ func (d *Dalga) Cancel(description, routingKey string) error {
 		return err
 	}
 	d.notifyPublisher("job cancelled")
-	debug("Job is cancelled:", Job{primaryKey: primaryKey{description, routingKey}})
+	debug("Job is cancelled")
 	return nil
 }
 
