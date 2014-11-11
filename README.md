@@ -78,9 +78,11 @@ Schedule a new job to run every 60 seconds:
 
     $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60'
     HTTP/1.1 201 Created
-    Date: Tue, 11 Nov 2014 17:25:08 GMT
-    Content-Length: 0
+    Date: Tue, 11 Nov 2014 22:10:40 GMT
+    Content-Length: 89
     Content-Type: text/plain; charset=utf-8
+
+    {"job":"1234","routing_key":"check_feed","interval":60,"next_run":"2014-11-11T22:11:40Z"}
 
 60 seconds later, Dalga publishes a message to RabbitMQ server:
 
@@ -90,14 +92,28 @@ Schedule a new job to run every 60 seconds:
         delivery_mode:  2
     Payload: 1234
 
+Get the status of a job:
+
+    curl -i -X GET 'http://127.0.0.1:34006/jobs/check_feed/1234'
+    HTTP/1.1 200 OK
+    Date: Tue, 11 Nov 2014 22:12:21 GMT
+    Content-Length: 89
+    Content-Type: text/plain; charset=utf-8
+
+    {"job":"1234","routing_key":"check_feed","interval":60,"next_run":"2014-11-11T22:12:41Z"}
+
 Update the interval of existing job:
 
-    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=15'
-    HTTP/1.1 204 No Content
-    Date: Tue, 11 Nov 2014 17:26:32 GMT
+    $ curl -i -X POST 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=15'
+    HTTP/1.1 200 OK
+    Date: Tue, 11 Nov 2014 22:13:11 GMT
+    Content-Length: 89
+    Content-Type: text/plain; charset=utf-8
+
+    {"job":"1234","routing_key":"check_feed","interval":15,"next_run":"2014-11-11T22:13:26Z"}
 
 Cancel previously scheduled job:
 
     $ curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1234'
     HTTP/1.1 204 No Content
-    Date: Tue, 11 Nov 2014 17:26:50 GMT
+    Date: Tue, 11 Nov 2014 22:13:35 GMT

@@ -1,7 +1,6 @@
 package dalga
 
 // TODO one-off jobs
-// TODO update readme
 // TODO implement raft consensus
 
 import (
