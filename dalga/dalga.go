@@ -1,6 +1,7 @@
 package dalga
 
-// TODO put a lock on table while working on it
+// TODO restful interface
+// TODO one-off jobs
 // TODO update readme
 // TODO implement raft consensus
 
