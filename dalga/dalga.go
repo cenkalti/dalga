@@ -1,6 +1,7 @@
 package dalga
 
-// TODO refactor publisher wait/notify
+// TODO refactor loop in publisher (single select)
+// TODO rename id to job and change limit to 65535
 // TODO update readme
 
 import (
@@ -28,8 +29,7 @@ type Dalga struct {
 	table             *table
 	channel           *amqp.Channel
 	listener          net.Listener
-	newJobs           chan *Job
-	canceledJobs      chan *Job
+	notify            chan struct{}
 	quitPublisher     chan bool
 	publisherFinished chan bool
 }
@@ -37,8 +37,7 @@ type Dalga struct {
 func New(config Config) *Dalga {
 	return &Dalga{
 		Config:            config,
-		newJobs:           make(chan *Job),
-		canceledJobs:      make(chan *Job),
+		notify:            make(chan struct{}, 1),
 		quitPublisher:     make(chan bool),
 		publisherFinished: make(chan bool),
 	}
@@ -152,13 +151,10 @@ func (d *Dalga) Schedule(id, routingKey string, interval uint32) error {
 	// publisher() may be sleeping for the next job on the queue
 	// at the time we schedule a new Job. Let it wake up so it can
 	// re-fetch the new Job from the front of the queue.
-	//
-	// The code below is an idiom for non-blocking send to a channel.
 	select {
-	case d.newJobs <- job:
+	case d.notify <- struct{}{}:
 		debug("Sent new job signal")
 	default:
-		debug("Did not send new job signal")
 	}
 
 	debug("Job is scheduled:", job)
@@ -170,16 +166,13 @@ func (d *Dalga) Cancel(id, routingKey string) error {
 		return err
 	}
 
-	job := Job{primaryKey: primaryKey{id, routingKey}}
-
 	select {
-	case d.canceledJobs <- &job:
+	case d.notify <- struct{}{}:
 		debug("Sent cancel signal")
 	default:
-		debug("Did not send cancel signal")
 	}
 
-	debug("Job is cancelled:", job)
+	debug("Job is cancelled:", Job{primaryKey: primaryKey{id, routingKey}})
 	return nil
 }
 
@@ -235,15 +228,15 @@ func (d *Dalga) publisher() {
 			debug("No waiting jobs in the queue")
 			debug("Waiting for new job signal")
 			select {
-			case job = <-d.newJobs:
-				debug("Got new job signal")
+			case <-d.notify:
+				debug("Got a notification")
+				continue
 			case <-d.quitPublisher:
 				debug("Came message from channel 2: quitPublisher")
 				goto end
 			}
 		}
 
-	checkNextRun:
 		remaining := job.Remaining()
 		debug("Next job:", job, "Remaining:", remaining)
 
@@ -260,24 +253,9 @@ func (d *Dalga) publisher() {
 		case <-time.After(remaining):
 			debug("Job sleep time finished")
 			publish(job)
-		case newJob := <-d.newJobs:
-			debug("A new job has been scheduled")
-			if newJob.NextRun.Before(job.NextRun) {
-				debug("The new job comes before out current job")
-				job = newJob // Process the new job next
-			}
-			// Continue processing the current job without fetching from database
-			goto checkNextRun
-		case canceledJob := <-d.canceledJobs:
-			debug("A job has been cancelled")
-			if job.Equal(canceledJob) {
-				// The job we are waiting for has been canceled.
-				// We need to fetch the next job in the queue.
-				debug("The cancelled job is our current job")
-				continue
-			}
-			// Continue to process our current job
-			goto checkNextRun
+		case <-d.notify:
+			debug("Got a notification")
+			continue
 		case <-d.quitPublisher:
 			debug("Came message from channel 3: quitPublisher")
 			goto end
