@@ -1,28 +1,15 @@
 package dalga
 
 import (
-	"net"
 	"net/http"
 	"strconv"
 )
 
-func (d *Dalga) makeServer() (func(), error) {
-	var err error
-	d.listener, err = net.Listen("tcp", d.Config.HTTP.Addr())
-	if err != nil {
-		return nil, err
-	}
-
+func (d *Dalga) serveHTTP() error {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/schedule", d.handleSchedule)
 	handler.HandleFunc("/cancel", d.handleCancel)
-
-	return func() {
-		http.Serve(d.listener, handler)
-		debug("HTTP server is done")
-		d.quitPublisher <- true
-		debug("Sent quit message")
-	}, nil
+	return http.Serve(d.listener, handler)
 }
 
 // hadleSchedule is the web server endpoint for path: /schedule

@@ -89,14 +89,15 @@ func TestSchedule(t *testing.T) {
 
 	println("declared queue")
 
-	err = d.Start()
-	if err != nil {
-		t.Fatalf("cannot start Dalga: %s", err.Error())
-	}
+	done := make(chan struct{})
+	go func() {
+		if err := d.Run(); err != nil {
+			t.Fatal(err)
+		}
+		close(done)
+	}()
 
-	println("started dalga")
-
-	defer d.Shutdown()
+	<-d.NotifyReady()
 
 	err = d.Schedule(testID, testKey, uint32(testInterval/time.Second))
 	if err != nil {
@@ -123,8 +124,13 @@ func TestSchedule(t *testing.T) {
 		t.Fatal("timeout")
 	}
 
+	// Teardown
+	if err := d.Shutdown(); err != nil {
+		t.Fatal(err)
+	}
+
+	<-done
+
 	// Cleanup
 	db.Exec(drop_sql)
-
-	time.Sleep(time.Second)
 }

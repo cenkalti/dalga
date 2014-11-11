@@ -1,7 +1,6 @@
 package dalga
 
-// TODO shutdown dalga gracefully
-// TODO stop all goroutines
+// TODO unexport Dalga.Config
 // TODO rename id to job and change limit to 65535
 // TODO put a lock on table while working on it
 // TODO update readme
@@ -28,78 +27,101 @@ func debug(args ...interface{}) {
 }
 
 type Dalga struct {
-	Config            Config
-	table             *table
-	channel           *amqp.Channel
-	listener          net.Listener
-	notify            chan struct{}
-	quitPublisher     chan bool
-	publisherFinished chan bool
+	Config     Config
+	db         *sql.DB
+	table      *table
+	connection *amqp.Connection
+	channel    *amqp.Channel
+	listener   net.Listener
+	// to wake up publisher when a new job is scheduled or cancelled
+	notify chan struct{}
+	// will be closed when dalga is ready to accept requests
+	ready chan struct{}
+	// will be closed by Shutdown method
+	shutdown chan struct{}
+	// to stop publisher goroutine
+	stopPublisher chan struct{}
+	// will be closed when publisher goroutine is stopped
+	publisherStopped chan struct{}
 }
 
 func New(config Config) *Dalga {
 	return &Dalga{
-		Config:            config,
-		notify:            make(chan struct{}, 1),
-		quitPublisher:     make(chan bool),
-		publisherFinished: make(chan bool),
+		Config:           config,
+		notify:           make(chan struct{}, 1),
+		ready:            make(chan struct{}),
+		shutdown:         make(chan struct{}),
+		stopPublisher:    make(chan struct{}),
+		publisherStopped: make(chan struct{}),
 	}
 }
 
-// Start starts the publisher and http server goroutines.
-func (d *Dalga) Start() error {
+// Run the dalga and waits until Shutdown() is called.
+func (d *Dalga) Run() error {
 	if err := d.connectDB(); err != nil {
 		return err
 	}
+	defer d.db.Close()
 
 	if err := d.connectMQ(); err != nil {
 		return err
 	}
+	defer d.channel.Close()
+	defer d.connection.Close()
 
-	server, err := d.makeServer()
+	var err error
+	d.listener, err = net.Listen("tcp", d.Config.HTTP.Addr())
 	if err != nil {
 		return err
 	}
+
+	close(d.ready)
 
 	go d.publisher()
-	go server()
+	defer func() {
+		close(d.stopPublisher)
+		<-d.publisherStopped
+	}()
 
-	return nil
-}
-
-// Run starts the dalga and waits until Shutdown() is called.
-func (d *Dalga) Run() error {
-	err := d.Start()
-	if err != nil {
-		return err
+	if err = d.serveHTTP(); err != nil {
+		select {
+		case _, ok := <-d.shutdown:
+			if !ok {
+				// shutdown in progress, do not return error
+				return nil
+			}
+		default:
+		}
 	}
-
-	debug("Waiting a message from publisherFinished channel")
-	<-d.publisherFinished
-	debug("Received message from publisherFinished channel")
-
-	return nil
+	return err
 }
 
 func (d *Dalga) Shutdown() error {
+	close(d.shutdown)
 	return d.listener.Close()
 }
 
+func (d *Dalga) NotifyReady() <-chan struct{} {
+	return d.ready
+}
+
 func (d *Dalga) connectDB() error {
-	db, err := sql.Open("mysql", d.Config.MySQL.DSN())
+	var err error
+	d.db, err = sql.Open("mysql", d.Config.MySQL.DSN())
 	if err != nil {
 		return err
 	}
-	if err = db.Ping(); err != nil {
+	if err = d.db.Ping(); err != nil {
 		return err
 	}
 	log.Print("Connected to MySQL")
-	d.table = &table{db, d.Config.MySQL.Table}
+	d.table = &table{d.db, d.Config.MySQL.Table}
 	return nil
 }
 
 func (d *Dalga) connectMQ() error {
-	conn, err := amqp.Dial(d.Config.RabbitMQ.URL())
+	var err error
+	d.connection, err = amqp.Dial(d.Config.RabbitMQ.URL())
 	if err != nil {
 		return err
 	}
@@ -107,14 +129,14 @@ func (d *Dalga) connectMQ() error {
 
 	// Exit program when AMQP connection is closed.
 	connClosed := make(chan *amqp.Error)
-	conn.NotifyClose(connClosed)
+	d.connection.NotifyClose(connClosed)
 	go func() {
 		if err, ok := <-connClosed; ok {
 			log.Fatal(err)
 		}
 	}()
 
-	d.channel, err = conn.Channel()
+	d.channel, err = d.connection.Channel()
 	if err != nil {
 		return err
 	}
@@ -198,7 +220,7 @@ func (d *Dalga) publish(j *Job) error {
 
 // publisher runs a loop that reads the next Job from the queue and publishes it.
 func (d *Dalga) publisher() {
-	defer func() { d.publisherFinished <- true }()
+	defer close(d.publisherStopped)
 
 	for {
 		debug("---")
@@ -235,7 +257,7 @@ func (d *Dalga) publisher() {
 		case <-d.notify:
 			debug("Woken up from sleep by notification")
 			continue
-		case <-d.quitPublisher:
+		case <-d.stopPublisher:
 			debug("Came quit message")
 			return
 		}

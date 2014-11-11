@@ -52,7 +52,9 @@ func main() {
 	signal.Notify(interruptC, os.Interrupt)
 	go func() {
 		<-interruptC
-		d.Shutdown()
+		if err := d.Shutdown(); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	// Run Dalga
