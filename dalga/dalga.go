@@ -1,8 +1,11 @@
 package dalga
 
-// TODO refactor loop in publisher (single select)
+// TODO shutdown dalga gracefully
+// TODO stop all goroutines
 // TODO rename id to job and change limit to 65535
+// TODO put a lock on table while working on it
 // TODO update readme
+// TODO implement raft consensus
 
 import (
 	"database/sql"
@@ -79,7 +82,6 @@ func (d *Dalga) Run() error {
 }
 
 func (d *Dalga) Shutdown() error {
-	// TODO stop goroutines
 	return d.listener.Close()
 }
 
@@ -91,7 +93,7 @@ func (d *Dalga) connectDB() error {
 	if err = db.Ping(); err != nil {
 		return err
 	}
-	log.Println("Connected to MySQL")
+	log.Print("Connected to MySQL")
 	d.table = &table{db, d.Config.MySQL.Table}
 	return nil
 }
@@ -101,7 +103,7 @@ func (d *Dalga) connectMQ() error {
 	if err != nil {
 		return err
 	}
-	log.Println("Connected to RabbitMQ")
+	log.Print("Connected to RabbitMQ")
 
 	// Exit program when AMQP connection is closed.
 	connClosed := make(chan *amqp.Error)
@@ -196,71 +198,46 @@ func (d *Dalga) publish(j *Job) error {
 
 // publisher runs a loop that reads the next Job from the queue and publishes it.
 func (d *Dalga) publisher() {
-	publish := func(j *Job) {
-		err := d.publish(j)
-		if err != nil {
-			log.Println(err)
-			time.Sleep(time.Second)
-		}
-	}
+	defer func() { d.publisherFinished <- true }()
 
 	for {
 		debug("---")
 
-		select {
-		case <-d.quitPublisher:
-			debug("Came message from channel 1: quitPublisher")
-			goto end
-		default:
-		}
+		var after <-chan time.Time
 
 		job, err := d.table.Front()
 		if err != nil {
-			if err != sql.ErrNoRows {
-				log.Println(err)
-				time.Sleep(time.Second)
-				continue
+			if err == sql.ErrNoRows {
+				debug("No scheduled jobs in the table")
 			} else if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1146 {
 				// Table doesn't exist
 				log.Fatal(myErr)
-			}
-
-			debug("No waiting jobs in the queue")
-			debug("Waiting for new job signal")
-			select {
-			case <-d.notify:
-				debug("Got a notification")
+			} else {
+				log.Print(err)
+				time.Sleep(time.Second)
 				continue
-			case <-d.quitPublisher:
-				debug("Came message from channel 2: quitPublisher")
-				goto end
 			}
+		} else {
+			remaining := job.Remaining()
+			after = time.After(remaining)
+
+			debug("Next job:", job, "Remaining:", remaining)
 		}
 
-		remaining := job.Remaining()
-		debug("Next job:", job, "Remaining:", remaining)
-
-		now := time.Now().UTC()
-		if !job.NextRun.After(now) {
-			publish(job)
-			continue
-		}
-
-		// Wait until the next Job time or
-		// the webserver's /schedule handler wakes us up
-		debug("Sleeping for job:", remaining)
+		// Sleep until the next job's run time or the webserver's wakes us up.
 		select {
-		case <-time.After(remaining):
+		case <-after:
 			debug("Job sleep time finished")
-			publish(job)
+			if err = d.publish(job); err != nil {
+				log.Print(err)
+				time.Sleep(time.Second)
+			}
 		case <-d.notify:
-			debug("Got a notification")
+			debug("Woken up from sleep by notification")
 			continue
 		case <-d.quitPublisher:
-			debug("Came message from channel 3: quitPublisher")
-			goto end
+			debug("Came quit message")
+			return
 		}
 	}
-end:
-	d.publisherFinished <- true
 }

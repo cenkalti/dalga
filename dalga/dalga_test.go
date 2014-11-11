@@ -125,4 +125,6 @@ func TestSchedule(t *testing.T) {
 
 	// Cleanup
 	db.Exec(drop_sql)
+
+	time.Sleep(time.Second)
 }
