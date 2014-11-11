@@ -1,6 +1,7 @@
 package dalga
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -11,6 +12,7 @@ type Job struct {
 	NextRun  time.Time
 }
 
+// TODO remove primaryKey struct
 type primaryKey struct {
 	Description string
 	RoutingKey  string
@@ -40,6 +42,17 @@ func (j *Job) SetNewNextRun() {
 	j.NextRun = time.Now().UTC().Add(j.Interval)
 }
 
-func (j *Job) Equal(k *Job) bool {
-	return j.primaryKey == k.primaryKey
+// TODO remove this and use tags in main struct
+func (j *Job) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Job        string        `json:"job"`
+		RoutingKey string        `json:"routing_key"`
+		Interval   time.Duration `json:"interval"`
+		NextRun    time.Time     `json:"next_run"`
+	}{
+		Job:        j.Description,
+		RoutingKey: j.RoutingKey,
+		Interval:   j.Interval / time.Second,
+		NextRun:    j.NextRun,
+	})
 }

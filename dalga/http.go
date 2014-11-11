@@ -1,6 +1,8 @@
 package dalga
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -8,54 +10,121 @@ import (
 )
 
 func (d *Dalga) serveHTTP() error {
+	const path = "/jobs/:routingKey/:jobDescription"
 	m := pat.New()
-	m.Put("/jobs/:routing_key/:description", http.HandlerFunc(d.handleSchedule))
-	m.Del("/jobs/:routing_key/:description", http.HandlerFunc(d.handleCancel))
+	m.Get(path, handler(d.handleGet))
+	m.Put(path, handler(d.handleSchedule))
+	m.Post(path, handler(d.handleReschedule))
+	m.Del(path, handler(d.handleCancel))
 	return http.Serve(d.listener, m)
 }
 
-func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request) {
-	routingKey := r.URL.Query().Get(":routing_key")
-	description := r.URL.Query().Get(":description")
-	intervalString := r.FormValue("interval")
-
-	debug("http: schedule", r.RequestURI, intervalString)
-
-	intervalUint64, err := strconv.ParseUint(intervalString, 10, 32)
-	if err != nil {
-		http.Error(w, "cannot parse interval", http.StatusBadRequest)
-		return
-	}
-
-	if intervalUint64 == 0 {
-		http.Error(w, "interval can't be 0", http.StatusBadRequest)
-		return
-	}
-
-	updated, err := d.Schedule(description, routingKey, uint32(intervalUint64))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if updated {
-		w.WriteHeader(http.StatusNoContent)
-	} else {
-		w.WriteHeader(http.StatusCreated)
-	}
+func handler(f func(w http.ResponseWriter, r *http.Request, description, routingKey string)) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		debug("http:", r.Method, r.RequestURI)
+		routingKey := r.URL.Query().Get(":routingKey")
+		if routingKey == "" {
+			http.Error(w, "empty routing key", http.StatusBadRequest)
+			return
+		}
+		jobDescription := r.URL.Query().Get(":jobDescription")
+		if jobDescription == "" {
+			http.Error(w, "empty job", http.StatusBadRequest)
+			return
+		}
+		f(w, r, jobDescription, routingKey)
+	})
 }
 
-func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request) {
-	routingKey := r.URL.Query().Get(":routing_key")
-	description := r.URL.Query().Get(":description")
+func getInterval(r *http.Request) (uint32, error) {
+	s := r.FormValue("interval")
+	if s == "" {
+		return 0, errors.New("empty interval")
+	}
+	i64, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return 0, errors.New("cannot parse interval")
+	}
+	if i64 == 0 {
+		return 0, errors.New("interval can't be 0")
+	}
+	return uint32(i64), nil
+}
 
-	debug("http: cancel", r.RequestURI)
-
-	err := d.Cancel(description, routingKey)
+func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, description, routingKey string) {
+	job, err := d.table.Get(description, routingKey)
+	if err == ErrNotExist {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	data, err := json.Marshal(job)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(data)
+}
 
+func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, description, routingKey string) {
+	interval, err := getInterval(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	job, err := d.Schedule(description, routingKey, interval)
+	if err == ErrExist {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data, err := json.Marshal(job)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	w.Write(data)
+}
+
+func (d *Dalga) handleReschedule(w http.ResponseWriter, r *http.Request, description, routingKey string) {
+	interval, err := getInterval(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	job, err := d.Reschedule(description, routingKey, interval)
+	if err == ErrNotExist {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data, err := json.Marshal(job)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(data)
+}
+
+func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, description, routingKey string) {
+	err := d.Cancel(description, routingKey)
+	if err == ErrNotExist {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

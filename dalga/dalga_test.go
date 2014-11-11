@@ -14,6 +14,10 @@ import (
 	"github.com/cenkalti/dalga/vendor/github.com/streadway/amqp"
 )
 
+func init() {
+	*debugging = true
+}
+
 var (
 	testRoutingKey  = "testRoutingKey"
 	testDescription = "jobDescription"

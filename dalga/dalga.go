@@ -162,41 +162,47 @@ func (d *Dalga) CreateTable() error {
 	return t.Create()
 }
 
-func (d *Dalga) Schedule(id, routingKey string, interval uint32) (updated bool, err error) {
-	job := NewJob(id, routingKey, interval)
-
-	if updated, err = d.table.Insert(job); err != nil {
-		return
-	}
-
-	// Wake up the publisher.
-	//
-	// publisher() may be sleeping for the next job on the queue
-	// at the time we schedule a new Job. Let it wake up so it can
-	// re-fetch the new Job from the front of the queue.
-	select {
-	case d.notify <- struct{}{}:
-		debug("Sent new job signal")
-	default:
-	}
-
-	debug("Job is scheduled:", job)
-	return
+func (d *Dalga) Get(description, routingKey string) (*Job, error) {
+	return d.table.Get(description, routingKey)
 }
 
-func (d *Dalga) Cancel(id, routingKey string) error {
-	if err := d.table.Delete(id, routingKey); err != nil {
+func (d *Dalga) Schedule(description, routingKey string, interval uint32) (*Job, error) {
+	job := NewJob(description, routingKey, interval)
+	err := d.table.Insert(job)
+	if err != nil {
+		return nil, err
+	}
+	d.notifyPublisher("new job")
+	debug("Job is scheduled:", job)
+	return job, nil
+}
+
+func (d *Dalga) Reschedule(description, routingKey string, interval uint32) (*Job, error) {
+	job, err := d.table.UpdateInterval(description, routingKey, interval)
+	if err != nil {
+		return nil, err
+	}
+	d.notifyPublisher("job rescheduled")
+	debug("Job interval is updated:", Job{primaryKey: primaryKey{description, routingKey}})
+	return job, nil
+}
+
+func (d *Dalga) Cancel(description, routingKey string) error {
+	err := d.table.Delete(description, routingKey)
+	if err != nil {
 		return err
 	}
+	d.notifyPublisher("job cancelled")
+	debug("Job is cancelled:", Job{primaryKey: primaryKey{description, routingKey}})
+	return nil
+}
 
+func (d *Dalga) notifyPublisher(debugMessage string) {
 	select {
 	case d.notify <- struct{}{}:
-		debug("Sent cancel signal")
+		debug("notifying publisher:", debugMessage)
 	default:
 	}
-
-	debug("Job is cancelled:", Job{primaryKey: primaryKey{id, routingKey}})
-	return nil
 }
 
 // publish sends a message to exchange defined in the config and
