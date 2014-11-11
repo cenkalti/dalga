@@ -94,7 +94,7 @@ Update the interval of existing job:
 
     $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=15'
     HTTP/1.1 204 No Content
-    Date: Tue, 11 Nov 2014 17:26:02 GMT
+    Date: Tue, 11 Nov 2014 17:26:32 GMT
 
 Cancel previously scheduled job:
 
