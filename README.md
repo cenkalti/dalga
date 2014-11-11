@@ -94,7 +94,7 @@ Schedule a new job to run every 60 seconds:
 
 Get the status of a job:
 
-    curl -i -X GET 'http://127.0.0.1:34006/jobs/check_feed/1234'
+    $ curl -i -X GET 'http://127.0.0.1:34006/jobs/check_feed/1234'
     HTTP/1.1 200 OK
     Date: Tue, 11 Nov 2014 22:12:21 GMT
     Content-Length: 89
