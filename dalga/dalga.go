@@ -1,6 +1,5 @@
 package dalga
 
-// TODO unexport Dalga.Config
 // TODO rename id to job and change limit to 65535
 // TODO put a lock on table while working on it
 // TODO update readme
@@ -27,7 +26,7 @@ func debug(args ...interface{}) {
 }
 
 type Dalga struct {
-	Config     Config
+	config     Config
 	db         *sql.DB
 	table      *table
 	connection *amqp.Connection
@@ -47,7 +46,7 @@ type Dalga struct {
 
 func New(config Config) *Dalga {
 	return &Dalga{
-		Config:           config,
+		config:           config,
 		notify:           make(chan struct{}, 1),
 		ready:            make(chan struct{}),
 		shutdown:         make(chan struct{}),
@@ -70,7 +69,7 @@ func (d *Dalga) Run() error {
 	defer d.connection.Close()
 
 	var err error
-	d.listener, err = net.Listen("tcp", d.Config.HTTP.Addr())
+	d.listener, err = net.Listen("tcp", d.config.HTTP.Addr())
 	if err != nil {
 		return err
 	}
@@ -107,7 +106,7 @@ func (d *Dalga) NotifyReady() <-chan struct{} {
 
 func (d *Dalga) connectDB() error {
 	var err error
-	d.db, err = sql.Open("mysql", d.Config.MySQL.DSN())
+	d.db, err = sql.Open("mysql", d.config.MySQL.DSN())
 	if err != nil {
 		return err
 	}
@@ -115,13 +114,13 @@ func (d *Dalga) connectDB() error {
 		return err
 	}
 	log.Print("Connected to MySQL")
-	d.table = &table{d.db, d.Config.MySQL.Table}
+	d.table = &table{d.db, d.config.MySQL.Table}
 	return nil
 }
 
 func (d *Dalga) connectMQ() error {
 	var err error
-	d.connection, err = amqp.Dial(d.Config.RabbitMQ.URL())
+	d.connection, err = amqp.Dial(d.config.RabbitMQ.URL())
 	if err != nil {
 		return err
 	}
@@ -154,12 +153,12 @@ func (d *Dalga) connectMQ() error {
 }
 
 func (d *Dalga) CreateTable() error {
-	db, err := sql.Open("mysql", d.Config.MySQL.DSN())
+	db, err := sql.Open("mysql", d.config.MySQL.DSN())
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	t := &table{db, d.Config.MySQL.Table}
+	t := &table{db, d.config.MySQL.Table}
 	return t.Create()
 }
 
@@ -206,7 +205,7 @@ func (d *Dalga) publish(j *Job) error {
 	debug("publish", *j)
 
 	// Send a message to RabbitMQ
-	err := d.channel.Publish(d.Config.RabbitMQ.Exchange, j.RoutingKey, true, false, amqp.Publishing{
+	err := d.channel.Publish(d.config.RabbitMQ.Exchange, j.RoutingKey, true, false, amqp.Publishing{
 		Body:         []byte(j.ID),
 		DeliveryMode: amqp.Persistent,
 		Expiration:   strconv.FormatFloat(j.Interval.Seconds(), 'f', 0, 64) + "000",
