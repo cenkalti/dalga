@@ -42,11 +42,10 @@ Install
 
     $ go get github.com/cenkalti/dalga
 
-Run
----
+Usage
+-----
 
 All configuration is done with command line flags:
-
 
     $ dalga -h
     Usage dalga:
@@ -67,7 +66,6 @@ All configuration is done with command line flags:
       -rabbitmq-user="guest":
       -rabbitmq-vhost="/":
 
-
 To create the table for storing jobs:
 
     $ dalga -create-table
@@ -76,25 +74,30 @@ Then, run the server:
 
     $ dalga
 
-HTTP API
---------
-
 Schedule a new job to run every 60 seconds:
 
-    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1?interval=60'
+    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60'
     HTTP/1.1 201 Created
     Date: Tue, 11 Nov 2014 17:25:08 GMT
     Content-Length: 0
     Content-Type: text/plain; charset=utf-8
 
+60 seconds later, Dalga publishes a message to RabbitMQ server:
+
+    Routing Key: check_feed
+    Properties:
+        expiration: 60000
+        delivery_mode:  2
+    Payload: 1234
+
 Update the interval of existing job:
 
-    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1?interval=15'
+    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=15'
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 17:26:02 GMT
 
 Cancel previously scheduled job:
 
-    $ curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1'
+    $ curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1234'
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 17:26:50 GMT
