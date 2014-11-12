@@ -176,16 +176,6 @@ func (d *Dalga) Schedule(description, routingKey string, interval uint32) (*Job,
 	return job, nil
 }
 
-func (d *Dalga) Reschedule(description, routingKey string, interval uint32) (*Job, error) {
-	job, err := d.table.UpdateInterval(description, routingKey, interval)
-	if err != nil {
-		return nil, err
-	}
-	d.notifyPublisher("job rescheduled")
-	debug("Job interval is updated:", job)
-	return job, nil
-}
-
 func (d *Dalga) Cancel(description, routingKey string) error {
 	err := d.table.Delete(description, routingKey)
 	if err != nil {

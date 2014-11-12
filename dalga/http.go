@@ -14,7 +14,6 @@ func (d *Dalga) serveHTTP() error {
 	m := pat.New()
 	m.Get(path, handler(d.handleGet))
 	m.Put(path, handler(d.handleSchedule))
-	m.Post(path, handler(d.handleReschedule))
 	m.Del(path, handler(d.handleCancel))
 	return http.Serve(d.listener, m)
 }
@@ -90,29 +89,6 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	w.Write(data)
-}
-
-func (d *Dalga) handleReschedule(w http.ResponseWriter, r *http.Request, description, routingKey string) {
-	interval, err := getInterval(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	job, err := d.Reschedule(description, routingKey, interval)
-	if err == ErrNotExist {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	data, err := json.Marshal(job)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	w.Write(data)
 }
 

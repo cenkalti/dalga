@@ -68,37 +68,6 @@ func (t *table) Insert(j *Job) error {
 	return err
 }
 
-// UpdateInterval updates the interval of a job.
-// The job will run after interval seconds.
-func (t *table) UpdateInterval(description, routingKey string, interval uint32) (*Job, error) {
-	j := NewJob(description, routingKey, interval)
-	result, err := t.db.Exec("UPDATE "+t.name+" "+
-		"SET `interval`=?, next_run=?"+" "+
-		"WHERE job=? AND routing_key=?",
-		j.Interval.Seconds(), j.NextRun, j.Description, j.RoutingKey)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return nil, err
-	}
-	if rows == 0 {
-		// No rows are affected. Maybe there is a row but the update did not change any columns.
-		// Let's check if there is a job with the description and the routing key.
-		row := t.db.QueryRow("SELECT COUNT(*) FROM "+t.name+
-			" WHERE job=? AND routing_key=?", j.Description, j.RoutingKey)
-		var count int64
-		if err = row.Scan(&count); err != nil {
-			return nil, err
-		}
-		if count == 0 {
-			return nil, ErrNotExist
-		}
-	}
-	return j, nil
-}
-
 // Delete the job from scheduler table.
 func (t *table) Delete(description, routingKey string) error {
 	result, err := t.db.Exec("DELETE FROM "+t.name+" "+"WHERE job=? AND routing_key=?", description, routingKey)
