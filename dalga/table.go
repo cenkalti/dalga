@@ -104,6 +104,6 @@ func (t *table) UpdateNextRun(j *Job) error {
 	_, err := t.db.Exec("UPDATE "+t.name+" "+
 		"SET next_run=? "+
 		"WHERE job=? AND routing_key=?",
-		time.Now().UTC().Add(j.Interval), j.Description, j.RoutingKey)
+		j.NextRun, j.Description, j.RoutingKey)
 	return err
 }

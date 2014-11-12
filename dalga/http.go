@@ -44,9 +44,6 @@ func getInterval(r *http.Request) (uint32, error) {
 	if err != nil {
 		return 0, errors.New("cannot parse interval")
 	}
-	if i64 == 0 {
-		return 0, errors.New("interval can't be 0")
-	}
 	return uint32(i64), nil
 }
 
@@ -74,7 +71,12 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	job, err := d.Schedule(description, routingKey, interval)
+	oneOff := r.FormValue("one-off") != ""
+	if !oneOff && interval == 0 {
+		http.Error(w, "interval can't be 0 for periodic jobs", http.StatusBadRequest)
+		return
+	}
+	job, err := d.Schedule(description, routingKey, interval, oneOff)
 	if err == ErrExist {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return

@@ -5,6 +5,7 @@ Dalga
 
 Dalga is a job scheduler.
 
+- Can schedule periodic or one-off jobs.
 - Stores jobs in a MySQL table.
 - Has an HTTP interface for scheduling and cancelling jobs.
 - Can schedule jobs periodically or one-off.
@@ -107,3 +108,13 @@ Cancel previously scheduled job:
     $ curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1234'
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 22:13:35 GMT
+
+Set `one-off=true` to schedule a one-off job:
+
+    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60&one-off=true'
+    HTTP/1.1 201 Created
+    Date: Wed, 12 Nov 2014 08:53:21 GMT
+    Content-Length: 88
+    Content-Type: text/plain; charset=utf-8
+
+    {"job":"1234","routing_key":"check_feed","interval":0,"next_run":"2014-11-12T08:54:21Z"}

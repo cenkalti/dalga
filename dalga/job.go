@@ -13,13 +13,16 @@ type Job struct {
 	NextRun     time.Time
 }
 
-func NewJob(description, routingKey string, interval uint32) *Job {
+func NewJob(description, routingKey string, interval uint32, oneOff bool) *Job {
 	j := Job{
 		Description: description,
 		RoutingKey:  routingKey,
 		Interval:    time.Duration(interval) * time.Second,
 	}
 	j.SetNewNextRun()
+	if oneOff {
+		j.Interval = 0
+	}
 	return &j
 }
 

@@ -1,6 +1,5 @@
 package dalga
 
-// TODO one-off jobs
 // TODO implement raft consensus
 
 import (
@@ -165,8 +164,8 @@ func (d *Dalga) Get(description, routingKey string) (*Job, error) {
 	return d.table.Get(description, routingKey)
 }
 
-func (d *Dalga) Schedule(description, routingKey string, interval uint32) (*Job, error) {
-	job := NewJob(description, routingKey, interval)
+func (d *Dalga) Schedule(description, routingKey string, interval uint32, oneOff bool) (*Job, error) {
+	job := NewJob(description, routingKey, interval, oneOff)
 	err := d.table.Insert(job)
 	if err != nil {
 		return nil, err
@@ -199,7 +198,6 @@ func (d *Dalga) notifyPublisher(debugMessage string) {
 func (d *Dalga) publish(j *Job) error {
 	debug("publish", *j)
 
-	// Send a message to RabbitMQ
 	err := d.channel.Publish(d.config.RabbitMQ.Exchange, j.RoutingKey, true, false, amqp.Publishing{
 		Body:         []byte(j.Description),
 		DeliveryMode: amqp.Persistent,
@@ -209,6 +207,12 @@ func (d *Dalga) publish(j *Job) error {
 		return err
 	}
 
+	if j.Interval == 0 {
+		debug("deleting one-off job")
+		return d.table.Delete(j.Description, j.RoutingKey)
+	}
+
+	j.SetNewNextRun()
 	return d.table.UpdateNextRun(j)
 }
 
@@ -236,7 +240,6 @@ func (d *Dalga) publisher() {
 		} else {
 			remaining := job.Remaining()
 			after = time.After(remaining)
-
 			debug("Next job:", job, "Remaining:", remaining)
 		}
 

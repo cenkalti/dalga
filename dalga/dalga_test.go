@@ -21,7 +21,7 @@ func init() {
 var (
 	testRoutingKey  = "testRoutingKey"
 	testDescription = "jobDescription"
-	testInterval    = time.Second
+	testInterval    time.Duration
 	testDelay       = time.Second
 )
 
@@ -110,6 +110,7 @@ func TestSchedule(t *testing.T) {
 
 	values := make(url.Values)
 	values.Set("interval", strconv.Itoa(int(testInterval/time.Second)))
+	values.Set("one-off", "1")
 
 	endpoint := "http://" + config.HTTP.Addr() + "/jobs/" + testRoutingKey + "/" + testDescription
 	req, err := http.NewRequest("PUT", endpoint, strings.NewReader(values.Encode()))
