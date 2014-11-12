@@ -16,7 +16,7 @@ type table struct {
 
 const createTableSQL = "" +
 	"CREATE TABLE `%s` (" +
-	"  `job`         VARCHAR(20000)  NOT NULL," +
+	"  `job`         VARCHAR(255)    NOT NULL," +
 	"  `routing_key` VARCHAR(255)    NOT NULL," +
 	"  `interval`    INT UNSIGNED    NOT NULL," +
 	"  `next_run`    DATETIME        NOT NULL," +
