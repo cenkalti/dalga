@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
 )
 
 type table struct {
@@ -58,13 +56,10 @@ func (t *table) Get(description, routingKey string) (*Job, error) {
 
 // Insert the job to to scheduler table.
 func (t *table) Insert(j *Job) error {
-	_, err := t.db.Exec("INSERT INTO "+t.name+
+	_, err := t.db.Exec("REPLACE INTO "+t.name+
 		"(job, routing_key, `interval`, next_run) "+
 		"VALUES (?, ?, ?, ?)",
 		j.Description, j.RoutingKey, j.Interval.Seconds(), j.NextRun)
-	if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1062 {
-		return ErrExist
-	}
 	return err
 }
 

@@ -78,10 +78,6 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 		return
 	}
 	job, err := d.Schedule(description, routingKey, interval, oneOff)
-	if err == ErrExist {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
