@@ -14,7 +14,7 @@ func (d *Dalga) serveHTTP() error {
 	m := pat.New()
 	m.Get(path, handler(d.handleGet))
 	m.Put(path, handler(d.handleSchedule))
-	m.Post(path, handler(d.handleKick))
+	m.Post(path, handler(d.handleTrigger))
 	m.Del(path, handler(d.handleCancel))
 	return http.Serve(d.listener, m)
 }
@@ -93,8 +93,8 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 	w.Write(data)
 }
 
-func (d *Dalga) handleKick(w http.ResponseWriter, r *http.Request, description, routingKey string) {
-	job, err := d.Kick(description, routingKey)
+func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, description, routingKey string) {
+	job, err := d.Trigger(description, routingKey)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

@@ -173,7 +173,7 @@ func (d *Dalga) Schedule(description, routingKey string, interval uint32, oneOff
 	return job, nil
 }
 
-func (d *Dalga) Kick(description, routingKey string) (*Job, error) {
+func (d *Dalga) Trigger(description, routingKey string) (*Job, error) {
 	job, err := d.Get(description, routingKey)
 	if err != nil {
 		return nil, err
@@ -182,8 +182,8 @@ func (d *Dalga) Kick(description, routingKey string) (*Job, error) {
 	if err := d.table.Insert(job); err != nil {
 		return nil, err
 	}
-	d.notifyPublisher("job is kicked")
-	debug("Job is kicked:", job)
+	d.notifyPublisher("job is triggered")
+	debug("Job is triggered:", job)
 	return job, nil
 }
 
