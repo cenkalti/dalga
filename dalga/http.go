@@ -62,6 +62,7 @@ func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, description, r
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }
 
@@ -90,6 +91,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	w.Write(data)
 }

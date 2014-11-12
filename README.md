@@ -79,9 +79,9 @@ Schedule a new job to run every 60 seconds:
 
     $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60'
     HTTP/1.1 201 Created
+    Content-Type: application/json; charset=utf-8
     Date: Tue, 11 Nov 2014 22:10:40 GMT
     Content-Length: 89
-    Content-Type: text/plain; charset=utf-8
 
     {"job":"1234","routing_key":"check_feed","interval":60,"next_run":"2014-11-11T22:11:40Z"}
 
@@ -97,9 +97,9 @@ Get the status of a job:
 
     $ curl -i -X GET 'http://127.0.0.1:34006/jobs/check_feed/1234'
     HTTP/1.1 200 OK
+    Content-Type: application/json; charset=utf-8
     Date: Tue, 11 Nov 2014 22:12:21 GMT
     Content-Length: 89
-    Content-Type: text/plain; charset=utf-8
 
     {"job":"1234","routing_key":"check_feed","interval":60,"next_run":"2014-11-11T22:12:41Z"}
 
@@ -113,8 +113,8 @@ Set `one-off=true` to schedule a one-off job:
 
     $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60&one-off=true'
     HTTP/1.1 201 Created
+    Content-Type: application/json; charset=utf-8
     Date: Wed, 12 Nov 2014 08:53:21 GMT
     Content-Length: 88
-    Content-Type: text/plain; charset=utf-8
 
     {"job":"1234","routing_key":"check_feed","interval":0,"next_run":"2014-11-12T08:54:21Z"}
