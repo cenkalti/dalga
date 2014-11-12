@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/cenkalti/dalga/vendor/github.com/bmizerany/pat"
@@ -22,16 +23,29 @@ func (d *Dalga) serveHTTP() error {
 func handler(f func(w http.ResponseWriter, r *http.Request, description, routingKey string)) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		debug("http:", r.Method, r.RequestURI)
-		routingKey := r.URL.Query().Get(":routingKey")
-		if routingKey == "" {
+
+		routingKeyParam := r.URL.Query().Get(":routingKey")
+		if routingKeyParam == "" {
 			http.Error(w, "empty routing key", http.StatusBadRequest)
 			return
 		}
-		jobDescription := r.URL.Query().Get(":jobDescription")
-		if jobDescription == "" {
+		routingKey, err := url.QueryUnescape(routingKeyParam)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		jobDescriptionParam := r.URL.Query().Get(":jobDescription")
+		if jobDescriptionParam == "" {
 			http.Error(w, "empty job", http.StatusBadRequest)
 			return
 		}
+		jobDescription, err := url.QueryUnescape(jobDescriptionParam)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		f(w, r, jobDescription, routingKey)
 	})
 }
