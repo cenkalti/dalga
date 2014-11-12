@@ -8,7 +8,6 @@ Dalga is a job scheduler.
 - Can schedule periodic or one-off jobs.
 - Stores jobs in a MySQL table.
 - Has an HTTP interface for scheduling and cancelling jobs.
-- Can schedule jobs periodically or one-off.
 - Publishes the job's description to a RabbitMQ exchange on the job's scheduled time.
 
 Rationale
