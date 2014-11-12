@@ -1,7 +1,5 @@
 package dalga
 
-// TODO implement raft consensus
-
 import (
 	"database/sql"
 	"flag"
