@@ -1,7 +1,5 @@
 package dalga
 
-// TODO backoff
-
 import (
 	"database/sql"
 	"flag"
