@@ -8,38 +8,26 @@ import (
 	"os/signal"
 
 	"github.com/cenkalti/dalga/dalga"
+	"github.com/cenkalti/dalga/vendor/code.google.com/p/gcfg"
 )
 
-var config = dalga.DefaultConfig
-
-var createTable = flag.Bool("create-table", false, "create table for storing jobs")
-
-func init() {
-	flag.StringVar(&config.MySQL.Host, "mysql-host", config.MySQL.Host, "")
-	flag.StringVar(&config.MySQL.Port, "mysql-port", config.MySQL.Port, "")
-	flag.StringVar(&config.MySQL.DB, "mysql-db", config.MySQL.DB, "")
-	flag.StringVar(&config.MySQL.Table, "mysql-table", config.MySQL.Table, "")
-	flag.StringVar(&config.MySQL.User, "mysql-user", config.MySQL.User, "")
-	flag.StringVar(&config.MySQL.Password, "mysql-password", config.MySQL.Password, "")
-
-	flag.StringVar(&config.RabbitMQ.Host, "rabbitmq-host", config.RabbitMQ.Host, "")
-	flag.StringVar(&config.RabbitMQ.Port, "rabbitmq-port", config.RabbitMQ.Port, "")
-	flag.StringVar(&config.RabbitMQ.VHost, "rabbitmq-vhost", config.RabbitMQ.VHost, "")
-	flag.StringVar(&config.RabbitMQ.Exchange, "rabbitmq-exchange", config.RabbitMQ.Exchange, "")
-	flag.StringVar(&config.RabbitMQ.User, "rabbitmq-user", config.RabbitMQ.User, "")
-	flag.StringVar(&config.RabbitMQ.Password, "rabbitmq-password", config.RabbitMQ.Password, "")
-
-	flag.StringVar(&config.HTTP.Host, "http-host", config.HTTP.Host, "")
-	flag.StringVar(&config.HTTP.Port, "http-port", config.HTTP.Port, "")
-}
+var (
+	config      = flag.String("config", "", "config file")
+	createTable = flag.Bool("create-table", false, "create table for storing jobs")
+)
 
 func main() {
 	flag.Parse()
 
-	// Initialize Dalga object
-	d := dalga.New(config)
+	c := dalga.DefaultConfig
+	if *config != "" {
+		if err := gcfg.ReadFileInto(&c, *config); err != nil {
+			log.Fatal(err)
+		}
+	}
 
-	// Create jobs table
+	d := dalga.New(c)
+
 	if *createTable {
 		if err := d.CreateTable(); err != nil {
 			log.Fatal(err)
@@ -57,7 +45,6 @@ func main() {
 		}
 	}()
 
-	// Run Dalga
 	if err := d.Run(); err != nil {
 		log.Fatal(err)
 	}
