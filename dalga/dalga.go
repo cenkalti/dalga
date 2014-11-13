@@ -177,49 +177,6 @@ func (d *Dalga) notifyPublisher(debugMessage string) {
 	}
 }
 
-// publish makes a POST request to the endpoint and updates the Job's next run time.
-func (d *Dalga) publish(j *Job) error {
-	debug("publish", *j)
-
-	var add time.Duration
-	if j.Interval == 0 {
-		add = time.Duration(d.config.Endpoint.Timeout) * time.Second
-	} else {
-		add = j.Interval
-	}
-
-	j.NextRun = time.Now().UTC().Add(add)
-
-	if err := d.table.UpdateNextRun(j); err != nil {
-		return err
-	}
-
-	go func() {
-		if err := d.postJob(j); err != nil {
-			log.Print(err)
-		}
-	}()
-
-	return nil
-}
-
-func (d *Dalga) postJob(j *Job) error {
-	resp, err := d.client.Post(d.config.Endpoint.BaseURL+j.Path, "text/plain", strings.NewReader(j.Body))
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("endpoint error: %d", resp.StatusCode)
-	}
-
-	if j.Interval == 0 {
-		debug("deleting one-off job")
-		return d.table.Delete(j.Path, j.Body)
-	}
-
-	return nil
-}
-
 // publisher runs a loop that reads the next Job from the queue and publishes it.
 func (d *Dalga) publisher() {
 	defer close(d.publisherStopped)
@@ -263,4 +220,47 @@ func (d *Dalga) publisher() {
 			return
 		}
 	}
+}
+
+// publish makes a POST request to the endpoint and updates the Job's next run time.
+func (d *Dalga) publish(j *Job) error {
+	debug("publish", *j)
+
+	var add time.Duration
+	if j.Interval == 0 {
+		add = time.Duration(d.config.Endpoint.Timeout) * time.Second
+	} else {
+		add = j.Interval
+	}
+
+	j.NextRun = time.Now().UTC().Add(add)
+
+	if err := d.table.UpdateNextRun(j); err != nil {
+		return err
+	}
+
+	go func() {
+		if err := d.postJob(j); err != nil {
+			log.Print(err)
+		}
+	}()
+
+	return nil
+}
+
+func (d *Dalga) postJob(j *Job) error {
+	resp, err := d.client.Post(d.config.Endpoint.BaseURL+j.Path, "text/plain", strings.NewReader(j.Body))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("endpoint error: %d", resp.StatusCode)
+	}
+
+	if j.Interval == 0 {
+		debug("deleting one-off job")
+		return d.table.Delete(j.Path, j.Body)
+	}
+
+	return nil
 }
