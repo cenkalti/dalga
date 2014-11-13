@@ -50,13 +50,13 @@ func (j *Job) setNewNextRun() {
 
 func (j *Job) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Job      string        `json:"job"`
 		Path     string        `json:"routing_key"`
+		Body     string        `json:"body"`
 		Interval time.Duration `json:"interval"`
 		NextRun  string        `json:"next_run"`
 	}{
-		Job:      j.Body,
 		Path:     j.Path,
+		Body:     j.Body,
 		Interval: j.Interval / time.Second,
 		NextRun:  j.NextRun.Format(time.RFC3339),
 	})
