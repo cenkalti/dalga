@@ -1,15 +1,18 @@
 package dalga
 
+// TODO backoff
+
 import (
 	"database/sql"
 	"flag"
+	"fmt"
 	"log"
 	"net"
-	"strconv"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
-	"github.com/cenkalti/dalga/vendor/github.com/streadway/amqp"
 )
 
 var debugging = flag.Bool("debug", false, "turn on debug messages")
@@ -21,12 +24,10 @@ func debug(args ...interface{}) {
 }
 
 type Dalga struct {
-	config     Config
-	db         *sql.DB
-	table      *table
-	connection *amqp.Connection
-	channel    *amqp.Channel
-	listener   net.Listener
+	config   Config
+	db       *sql.DB
+	table    *table
+	listener net.Listener
 	// to wake up publisher when a new job is scheduled or cancelled
 	notify chan struct{}
 	// will be closed when dalga is ready to accept requests
@@ -57,14 +58,8 @@ func (d *Dalga) Run() error {
 	}
 	defer d.db.Close()
 
-	if err := d.connectMQ(); err != nil {
-		return err
-	}
-	defer d.channel.Close()
-	defer d.connection.Close()
-
 	var err error
-	d.listener, err = net.Listen("tcp", d.config.HTTP.Addr())
+	d.listener, err = net.Listen("tcp", d.config.Listen.Addr())
 	if err != nil {
 		return err
 	}
@@ -113,40 +108,6 @@ func (d *Dalga) connectDB() error {
 	}
 	log.Print("Connected to MySQL")
 	d.table = &table{d.db, d.config.MySQL.Table}
-	return nil
-}
-
-func (d *Dalga) connectMQ() error {
-	var err error
-	d.connection, err = amqp.Dial(d.config.RabbitMQ.URL())
-	if err != nil {
-		return err
-	}
-	log.Print("Connected to RabbitMQ")
-
-	// Exit program when AMQP connection is closed.
-	connClosed := make(chan *amqp.Error)
-	d.connection.NotifyClose(connClosed)
-	go func() {
-		if err, ok := <-connClosed; ok {
-			log.Fatal(err)
-		}
-	}()
-
-	d.channel, err = d.connection.Channel()
-	if err != nil {
-		return err
-	}
-
-	// Log undelivered messages.
-	returns := make(chan amqp.Return)
-	d.channel.NotifyReturn(returns)
-	go func() {
-		for r := range returns {
-			log.Printf("%d: %s exchange=%q routing-key=%q", r.ReplyCode, r.ReplyText, r.Exchange, r.RoutingKey)
-		}
-	}()
-
 	return nil
 }
 
@@ -218,18 +179,17 @@ func (d *Dalga) notifyPublisher(debugMessage string) {
 func (d *Dalga) publish(j *Job) error {
 	debug("publish", *j)
 
-	err := d.channel.Publish(d.config.RabbitMQ.Exchange, j.RoutingKey, true, false, amqp.Publishing{
-		Body:         []byte(j.Description),
-		DeliveryMode: amqp.Persistent,
-		Expiration:   strconv.FormatFloat(j.Interval.Seconds(), 'f', 0, 64) + "000",
-	})
+	resp, err := http.Post(d.config.Endpoint.BaseURL+j.Path, "", strings.NewReader(j.Body))
 	if err != nil {
 		return err
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("endpoint error: %d", resp.StatusCode)
 	}
 
 	if j.Interval == 0 {
 		debug("deleting one-off job")
-		return d.table.Delete(j.Description, j.RoutingKey)
+		return d.table.Delete(j.Path, j.Body)
 	}
 
 	j.setNewNextRun()

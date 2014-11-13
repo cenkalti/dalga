@@ -14,12 +14,12 @@ type table struct {
 
 const createTableSQL = "" +
 	"CREATE TABLE `%s` (" +
-	"  `routing_key` VARCHAR(255)    NOT NULL," +
-	"  `job`         VARCHAR(255)    NOT NULL," +
+	"  `path`        VARCHAR(255)    NOT NULL," +
+	"  `body`        VARCHAR(255)    NOT NULL," +
 	"  `interval`    INT UNSIGNED    NOT NULL," +
 	"  `next_run`    DATETIME        NOT NULL," +
 	"" +
-	"  PRIMARY KEY (`routing_key`, `job`)," +
+	"  PRIMARY KEY (`path`, `body`)," +
 	"  KEY `idx_next_run` (`next_run`)" +
 	") ENGINE=InnoDB DEFAULT CHARSET=utf8"
 
@@ -35,15 +35,15 @@ func (t *table) Create() error {
 	return err
 }
 
-// Get returns a job with description and routingKey from the table.
-func (t *table) Get(description, routingKey string) (*Job, error) {
-	row := t.db.QueryRow("SELECT job, routing_key, `interval`, next_run "+
+// Get returns a job with body and path from the table.
+func (t *table) Get(path, body string) (*Job, error) {
+	row := t.db.QueryRow("SELECT path, body, `interval`, next_run "+
 		"FROM "+t.name+" "+
-		"WHERE job = ? AND routing_key = ?",
-		description, routingKey)
+		"WHERE path = ? AND body = ?",
+		body, path)
 	var j Job
 	var interval uint32
-	err := row.Scan(&j.Description, &j.RoutingKey, &interval, &j.NextRun)
+	err := row.Scan(&j.Path, &j.Body, &interval, &j.NextRun)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotExist
 	}
@@ -57,15 +57,15 @@ func (t *table) Get(description, routingKey string) (*Job, error) {
 // Insert the job to to scheduler table.
 func (t *table) Insert(j *Job) error {
 	_, err := t.db.Exec("REPLACE INTO "+t.name+
-		"(job, routing_key, `interval`, next_run) "+
+		"(path, body, `interval`, next_run) "+
 		"VALUES (?, ?, ?, ?)",
-		j.Description, j.RoutingKey, j.Interval.Seconds(), j.NextRun)
+		j.Path, j.Body, j.Interval.Seconds(), j.NextRun)
 	return err
 }
 
 // Delete the job from scheduler table.
-func (t *table) Delete(description, routingKey string) error {
-	result, err := t.db.Exec("DELETE FROM "+t.name+" "+"WHERE job=? AND routing_key=?", description, routingKey)
+func (t *table) Delete(path, body string) error {
+	result, err := t.db.Exec("DELETE FROM "+t.name+" "+"WHERE path = ? AND body = ?", path, body)
 	if err != nil {
 		return err
 	}
@@ -81,12 +81,12 @@ func (t *table) Delete(description, routingKey string) error {
 
 // Front returns the next scheduled job from the table.
 func (t *table) Front() (*Job, error) {
-	row := t.db.QueryRow("SELECT job, routing_key, `interval`, next_run " +
+	row := t.db.QueryRow("SELECT path, body, `interval`, next_run " +
 		"FROM " + t.name + " " +
 		"ORDER BY next_run ASC LIMIT 1")
 	var j Job
 	var interval uint32
-	err := row.Scan(&j.Description, &j.RoutingKey, &interval, &j.NextRun)
+	err := row.Scan(&j.Path, &j.Body, &interval, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (t *table) Front() (*Job, error) {
 func (t *table) UpdateNextRun(j *Job) error {
 	_, err := t.db.Exec("UPDATE "+t.name+" "+
 		"SET next_run=? "+
-		"WHERE job=? AND routing_key=?",
-		j.NextRun, j.Description, j.RoutingKey)
+		"WHERE path = ? AND body = ?",
+		j.NextRun, j.Path, j.Body)
 	return err
 }

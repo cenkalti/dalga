@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
-	"github.com/cenkalti/dalga/vendor/github.com/streadway/amqp"
 )
 
 func init() {
@@ -19,10 +18,10 @@ func init() {
 }
 
 var (
-	testRoutingKey  = "testRoutingKey"
-	testDescription = "jobDescription"
-	testInterval    time.Duration
-	testDelay       = time.Second
+	testPath     = "testPath"
+	testBody     = "testBody"
+	testInterval time.Duration // zero
+	testDelay    = time.Second
 )
 
 func TestSchedule(t *testing.T) {
@@ -53,34 +52,13 @@ func TestSchedule(t *testing.T) {
 
 	println("dropped table")
 
-	mq, err := amqp.Dial(config.RabbitMQ.URL())
-	if err != nil {
-		t.Fatalf("cannot connect to RabbitMQ: %s", err.Error())
+	called := make(chan struct{})
+	endpoint := func(w http.ResponseWriter, r *http.Request) {
+		close(called)
 	}
 
-	defer mq.Close()
-
-	channel, err := mq.Channel()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	println("connected to mq")
-
-	_, err = channel.QueueDelete(testRoutingKey, false, false, false)
-	if err != nil {
-		if mqErr, ok := err.(*amqp.Error); !ok || mqErr.Code != 404 { // NOT_FOUND
-			t.Fatal(err)
-		}
-
-		// Channel is closed after an error, need to re-open.
-		channel, err = mq.Channel()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	println("deleted queue")
+	http.HandleFunc("/", endpoint)
+	go http.ListenAndServe("127.0.0.1:5000", nil)
 
 	d := New(config)
 
@@ -90,13 +68,6 @@ func TestSchedule(t *testing.T) {
 	}
 
 	println("created table")
-
-	_, err = channel.QueueDeclare(testRoutingKey, false, false, false, false, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	println("declared queue")
 
 	done := make(chan struct{})
 	go func() {
@@ -112,8 +83,8 @@ func TestSchedule(t *testing.T) {
 	values.Set("interval", strconv.Itoa(int(testInterval/time.Second)))
 	values.Set("one-off", "1")
 
-	endpoint := "http://" + config.HTTP.Addr() + "/jobs/" + testRoutingKey + "/" + testDescription
-	req, err := http.NewRequest("PUT", endpoint, strings.NewReader(values.Encode()))
+	scheduleURL := "http://" + config.Listen.Addr() + "/jobs/" + testPath + "/" + testBody
+	req, err := http.NewRequest("PUT", scheduleURL, strings.NewReader(values.Encode()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,20 +104,13 @@ func TestSchedule(t *testing.T) {
 
 	println("scheduled job")
 
-	deliveries, err := channel.Consume(testRoutingKey, "", false, true, false, false, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	select {
-	case d, ok := <-deliveries:
-		if !ok {
-			t.Fatal("Consumer closed")
-		}
-		println("got message from queue")
-		if string(d.Body) != testDescription {
-			t.Fatalf("Invalid body: %s", string(d.Body))
-		}
+	case <-called:
+		println("endpoint is called")
+		// TODO check body
+		// if string(d.Body) != testBody {
+		// 	t.Fatalf("Invalid body: %s", string(d.Body))
+		// }
 	case <-time.After(testInterval + testDelay):
 		t.Fatal("timeout")
 	}

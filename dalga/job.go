@@ -7,24 +7,24 @@ import (
 )
 
 // Job is the record stored in jobs table.
-// Primary key is (RoutingKey, Description).
+// Primary key is (Path, Body).
 type Job struct {
-	// Description becomes body of AMQP message when published.
-	Description string
-	// RoutingKey becomes routing key of AMQP message when published.
-	RoutingKey  string
+	// Path is where the job is going to be POSTed when it's time came.
+	Path string
+	// Body of POST request.
+	Body string
 	// Interval is the duration between each publish to the exchange.
 	// If interval is 0 job will be deleted after first publish.
-	Interval    time.Duration
+	Interval time.Duration
 	// NextRun is the next run time of the job, stored in UTC.
-	NextRun     time.Time
+	NextRun time.Time
 }
 
 func newJob(description, routingKey string, interval uint32, oneOff bool) *Job {
 	j := Job{
-		Description: description,
-		RoutingKey:  routingKey,
-		Interval:    time.Duration(interval) * time.Second,
+		Body:     description,
+		Path:     routingKey,
+		Interval: time.Duration(interval) * time.Second,
 	}
 	j.setNewNextRun()
 	if oneOff {
@@ -35,7 +35,7 @@ func newJob(description, routingKey string, interval uint32, oneOff bool) *Job {
 
 // String implements Stringer interface. Returns the job in human-readable form.
 func (j *Job) String() string {
-	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.Description, j.RoutingKey, j.Interval/time.Second, j.NextRun.String()[:23])
+	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.Body, j.Path, j.Interval/time.Second, j.NextRun.String()[:23])
 }
 
 // Remaining returns the duration left to the job's next run time.
@@ -50,14 +50,14 @@ func (j *Job) setNewNextRun() {
 
 func (j *Job) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Job        string        `json:"job"`
-		RoutingKey string        `json:"routing_key"`
-		Interval   time.Duration `json:"interval"`
-		NextRun    string        `json:"next_run"`
+		Job      string        `json:"job"`
+		Path     string        `json:"routing_key"`
+		Interval time.Duration `json:"interval"`
+		NextRun  string        `json:"next_run"`
 	}{
-		Job:        j.Description,
-		RoutingKey: j.RoutingKey,
-		Interval:   j.Interval / time.Second,
-		NextRun:    j.NextRun.Format(time.RFC3339),
+		Job:      j.Body,
+		Path:     j.Path,
+		Interval: j.Interval / time.Second,
+		NextRun:  j.NextRun.Format(time.RFC3339),
 	})
 }
