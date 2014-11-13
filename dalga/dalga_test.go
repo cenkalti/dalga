@@ -52,9 +52,12 @@ func TestSchedule(t *testing.T) {
 
 	println("dropped table")
 
-	called := make(chan struct{})
+	called := make(chan string)
 	endpoint := func(w http.ResponseWriter, r *http.Request) {
-		close(called)
+		var buf bytes.Buffer
+		buf.ReadFrom(r.Body)
+		r.Body.Close()
+		called <- buf.String()
 	}
 
 	http.HandleFunc("/", endpoint)
@@ -105,12 +108,11 @@ func TestSchedule(t *testing.T) {
 	println("scheduled job")
 
 	select {
-	case <-called:
+	case body := <-called:
 		println("endpoint is called")
-		// TODO check body
-		// if string(d.Body) != testBody {
-		// 	t.Fatalf("Invalid body: %s", string(d.Body))
-		// }
+		if string(body) != testBody {
+			t.Fatalf("Invalid body: %s", body)
+		}
 	case <-time.After(testInterval + testDelay):
 		t.Fatal("timeout")
 	}
