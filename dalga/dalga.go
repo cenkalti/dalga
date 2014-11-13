@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/dalga/vendor/github.com/cenkalti/backoff"
 	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
 )
 
@@ -254,8 +255,10 @@ func (d *Dalga) publish(j *Job) error {
 		d.activeJobs[key] = struct{}{}
 		d.m.Unlock()
 
-		if err := d.postJob(j); err != nil {
-			log.Print(err)
+		d.retryPostJob(j)
+		if j.Interval == 0 {
+			debug("deleting one-off job")
+			d.retryDeleteJob(j)
 		}
 
 		d.m.Lock()
@@ -267,18 +270,46 @@ func (d *Dalga) publish(j *Job) error {
 }
 
 func (d *Dalga) postJob(j *Job) error {
-	resp, err := d.client.Post(d.config.Endpoint.BaseURL+j.Path, "text/plain", strings.NewReader(j.Body))
+	var resp *http.Response
+	var err error
+	resp, err = d.client.Post(d.config.Endpoint.BaseURL+j.Path, "text/plain", strings.NewReader(j.Body))
 	if err != nil {
 		return err
 	}
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("endpoint error: %d", resp.StatusCode)
 	}
-
-	if j.Interval == 0 {
-		debug("deleting one-off job")
-		return d.table.Delete(j.Path, j.Body)
-	}
-
 	return nil
+}
+
+func (d *Dalga) retryPostJob(j *Job) {
+	b := backoff.NewExponentialBackOff()
+	b.MaxElapsedTime = 0 // retry forever
+	if j.Interval > 0 {
+		b.MaxInterval = j.Interval
+	}
+	f := func() error { return d.postJob(j) }
+	retry(b, f, d.stopPublisher)
+}
+
+func (d *Dalga) retryDeleteJob(j *Job) {
+	b := backoff.NewConstantBackOff(time.Second)
+	f := func() error { return d.table.Delete(j.Path, j.Body) }
+	retry(b, f, nil)
+}
+
+func retry(b backoff.BackOff, f func() error, stop chan struct{}) {
+	ticker := backoff.NewTicker(b)
+	for {
+		select {
+		case <-ticker.C:
+			if err := f(); err != nil {
+				log.Print(err)
+				continue
+			}
+			return
+		case <-stop:
+			return
+		}
+	}
 }
