@@ -174,8 +174,7 @@ func (d *Dalga) notifyPublisher(debugMessage string) {
 	}
 }
 
-// publish sends a message to exchange defined in the config and
-// updates the Job's next run time on the database.
+// publish makes a POST request to the endpoint and updates the Job's next run time.
 func (d *Dalga) publish(j *Job) error {
 	debug("publish", *j)
 

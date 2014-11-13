@@ -13,7 +13,7 @@ type Job struct {
 	Path string
 	// Body of POST request.
 	Body string
-	// Interval is the duration between each publish to the exchange.
+	// Interval is the duration between each publish to the endpoint.
 	// If interval is 0 job will be deleted after first publish.
 	Interval time.Duration
 	// NextRun is the next run time of the job, stored in UTC.
