@@ -28,6 +28,7 @@ type Dalga struct {
 	db       *sql.DB
 	table    *table
 	listener net.Listener
+	client   http.Client
 	// to wake up publisher when a new job is scheduled or cancelled
 	notify chan struct{}
 	// will be closed when dalga is ready to accept requests
@@ -41,7 +42,7 @@ type Dalga struct {
 }
 
 func New(config Config) *Dalga {
-	return &Dalga{
+	d := &Dalga{
 		config:           config,
 		notify:           make(chan struct{}, 1),
 		ready:            make(chan struct{}),
@@ -49,6 +50,8 @@ func New(config Config) *Dalga {
 		stopPublisher:    make(chan struct{}),
 		publisherStopped: make(chan struct{}),
 	}
+	d.client.Timeout = time.Duration(config.Endpoint.Timeout) * time.Second
+	return d
 }
 
 // Run Dalga. This function is blocking. Returns nil if Shutdown is called.
@@ -178,7 +181,30 @@ func (d *Dalga) notifyPublisher(debugMessage string) {
 func (d *Dalga) publish(j *Job) error {
 	debug("publish", *j)
 
-	resp, err := http.Post(d.config.Endpoint.BaseURL+j.Path, "", strings.NewReader(j.Body))
+	var add time.Duration
+	if j.Interval == 0 {
+		add = time.Duration(d.config.Endpoint.Timeout) * time.Second
+	} else {
+		add = j.Interval
+	}
+
+	j.NextRun = time.Now().UTC().Add(add)
+
+	if err := d.table.UpdateNextRun(j); err != nil {
+		return err
+	}
+
+	go func() {
+		if err := d.postJob(j); err != nil {
+			log.Print(err)
+		}
+	}()
+
+	return nil
+}
+
+func (d *Dalga) postJob(j *Job) error {
+	resp, err := d.client.Post(d.config.Endpoint.BaseURL+j.Path, "text/plain", strings.NewReader(j.Body))
 	if err != nil {
 		return err
 	}
@@ -191,8 +217,7 @@ func (d *Dalga) publish(j *Job) error {
 		return d.table.Delete(j.Path, j.Body)
 	}
 
-	j.setNewNextRun()
-	return d.table.UpdateNextRun(j)
+	return nil
 }
 
 // publisher runs a loop that reads the next Job from the queue and publishes it.

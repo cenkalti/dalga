@@ -26,9 +26,8 @@ func newJob(description, routingKey string, interval uint32, oneOff bool) *Job {
 		Path:     routingKey,
 		Interval: time.Duration(interval) * time.Second,
 	}
-	j.setNewNextRun()
-	if oneOff {
-		j.Interval = 0
+	if !oneOff {
+		j.NextRun = time.Now().UTC().Add(j.Interval)
 	}
 	return &j
 }
@@ -41,11 +40,6 @@ func (j *Job) String() string {
 // Remaining returns the duration left to the job's next run time.
 func (j *Job) Remaining() time.Duration {
 	return j.NextRun.Sub(time.Now().UTC())
-}
-
-// setNewNextRun calculates the new run time according to current time and sets it on the job.
-func (j *Job) setNewNextRun() {
-	j.NextRun = time.Now().UTC().Add(j.Interval)
 }
 
 func (j *Job) MarshalJSON() ([]byte, error) {

@@ -50,4 +50,5 @@ func (c listenConfig) Addr() string {
 
 type endpointConfig struct {
 	BaseURL string
+	Timeout int
 }
