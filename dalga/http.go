@@ -92,7 +92,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 		http.Error(w, "interval can't be 0 for periodic jobs", http.StatusBadRequest)
 		return
 	}
-	job, err := d.Schedule(description, routingKey, interval, oneOff)
+	job, err := d.ScheduleJob(description, routingKey, interval, oneOff)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -108,7 +108,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 }
 
 func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, description, routingKey string) {
-	job, err := d.Trigger(description, routingKey)
+	job, err := d.TriggerJob(description, routingKey)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -127,7 +127,7 @@ func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, descriptio
 }
 
 func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, description, routingKey string) {
-	err := d.Cancel(description, routingKey)
+	err := d.CancelJob(description, routingKey)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

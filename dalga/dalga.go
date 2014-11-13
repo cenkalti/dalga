@@ -50,7 +50,7 @@ func New(config Config) *Dalga {
 	}
 }
 
-// Run the dalga and waits until Shutdown() is called.
+// Run Dalga. This function is blocking. Returns nil if Shutdown is called.
 func (d *Dalga) Run() error {
 	if err := d.connectDB(); err != nil {
 		return err
@@ -91,11 +91,13 @@ func (d *Dalga) Run() error {
 	return err
 }
 
+// Shutdown running Dalga.
 func (d *Dalga) Shutdown() error {
 	close(d.shutdown)
 	return d.listener.Close()
 }
 
+// NotifyReady returns a channel that will be closed when Dalga is running.
 func (d *Dalga) NotifyReady() <-chan struct{} {
 	return d.ready
 }
@@ -148,6 +150,7 @@ func (d *Dalga) connectMQ() error {
 	return nil
 }
 
+// CreateTable creates the table for storing jobs.
 func (d *Dalga) CreateTable() error {
 	db, err := sql.Open("mysql", d.config.MySQL.DSN())
 	if err != nil {
@@ -158,12 +161,15 @@ func (d *Dalga) CreateTable() error {
 	return t.Create()
 }
 
-func (d *Dalga) Get(description, routingKey string) (*Job, error) {
+// GetJob returns the job with description routing key.
+func (d *Dalga) GetJob(description, routingKey string) (*Job, error) {
 	return d.table.Get(description, routingKey)
 }
 
-func (d *Dalga) Schedule(description, routingKey string, interval uint32, oneOff bool) (*Job, error) {
-	job := NewJob(description, routingKey, interval, oneOff)
+// ScheduleJob inserts a new job to the table or replaces existing one.
+// Returns the created or replaced job.
+func (d *Dalga) ScheduleJob(description, routingKey string, interval uint32, oneOff bool) (*Job, error) {
+	job := newJob(description, routingKey, interval, oneOff)
 	err := d.table.Insert(job)
 	if err != nil {
 		return nil, err
@@ -173,8 +179,9 @@ func (d *Dalga) Schedule(description, routingKey string, interval uint32, oneOff
 	return job, nil
 }
 
-func (d *Dalga) Trigger(description, routingKey string) (*Job, error) {
-	job, err := d.Get(description, routingKey)
+// TriggerJob publishes the job to RabbitMQ immediately and resets the next run time of the job.
+func (d *Dalga) TriggerJob(description, routingKey string) (*Job, error) {
+	job, err := d.GetJob(description, routingKey)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +194,8 @@ func (d *Dalga) Trigger(description, routingKey string) (*Job, error) {
 	return job, nil
 }
 
-func (d *Dalga) Cancel(description, routingKey string) error {
+// CancelJob deletes the job with description and routing key.
+func (d *Dalga) CancelJob(description, routingKey string) error {
 	err := d.table.Delete(description, routingKey)
 	if err != nil {
 		return err
@@ -224,7 +232,7 @@ func (d *Dalga) publish(j *Job) error {
 		return d.table.Delete(j.Description, j.RoutingKey)
 	}
 
-	j.SetNewNextRun()
+	j.setNewNextRun()
 	return d.table.UpdateNextRun(j)
 }
 
