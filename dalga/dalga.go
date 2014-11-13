@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
@@ -24,11 +25,13 @@ func debug(args ...interface{}) {
 }
 
 type Dalga struct {
-	config   Config
-	db       *sql.DB
-	table    *table
-	listener net.Listener
-	client   http.Client
+	config     Config
+	db         *sql.DB
+	table      *table
+	listener   net.Listener
+	client     http.Client
+	activeJobs map[string]struct{}
+	m          sync.Mutex
 	// to wake up publisher when a new job is scheduled or cancelled
 	notify chan struct{}
 	// will be closed when dalga is ready to accept requests
@@ -44,6 +47,7 @@ type Dalga struct {
 func New(config Config) *Dalga {
 	d := &Dalga{
 		config:           config,
+		activeJobs:       make(map[string]struct{}),
 		notify:           make(chan struct{}, 1),
 		ready:            make(chan struct{}),
 		shutdown:         make(chan struct{}),
@@ -228,7 +232,7 @@ func (d *Dalga) publish(j *Job) error {
 
 	var add time.Duration
 	if j.Interval == 0 {
-		add = time.Duration(d.config.Endpoint.Timeout) * time.Second
+		add = d.client.Timeout
 	} else {
 		add = j.Interval
 	}
@@ -240,9 +244,23 @@ func (d *Dalga) publish(j *Job) error {
 	}
 
 	go func() {
+		// Do not do multiple POSTs for the same job at the same time.
+		key := j.Path + j.Body
+		d.m.Lock()
+		if _, ok := d.activeJobs[key]; ok {
+			d.m.Unlock()
+			return
+		}
+		d.activeJobs[key] = struct{}{}
+		d.m.Unlock()
+
 		if err := d.postJob(j); err != nil {
 			log.Print(err)
 		}
+
+		d.m.Lock()
+		delete(d.activeJobs, key)
+		d.m.Unlock()
 	}()
 
 	return nil
