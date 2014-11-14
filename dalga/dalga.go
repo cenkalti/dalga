@@ -31,6 +31,7 @@ type Dalga struct {
 	client     http.Client
 	activeJobs map[string]struct{}
 	m          sync.Mutex
+	wg         sync.WaitGroup
 	// to wake up publisher when a new job is scheduled or cancelled
 	notify chan struct{}
 	// will be closed when dalga is ready to accept requests
@@ -220,6 +221,7 @@ func (d *Dalga) publisher() {
 			continue
 		case <-d.stopPublisher:
 			debug("Came quit message")
+			d.wg.Wait()
 			return
 		}
 	}
@@ -242,6 +244,7 @@ func (d *Dalga) publish(j *Job) error {
 		return err
 	}
 
+	d.wg.Add(1)
 	go func() {
 		// Do not do multiple POSTs for the same job at the same time.
 		key := j.Path + j.Body
@@ -262,6 +265,8 @@ func (d *Dalga) publish(j *Job) error {
 		d.m.Lock()
 		delete(d.activeJobs, key)
 		d.m.Unlock()
+
+		d.wg.Done()
 	}()
 
 	return nil
