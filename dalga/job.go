@@ -9,10 +9,7 @@ import (
 // Job is the record stored in jobs table.
 // Primary key is (Path, Body).
 type Job struct {
-	// Path is where the job is going to be POSTed when it's time came.
-	Path string
-	// Body of POST request.
-	Body string
+	JobKey
 	// Interval is the duration between each POST to the endpoint.
 	// If interval is 0 job will be deleted after POST returns 200.
 	Interval time.Duration
@@ -20,10 +17,19 @@ type Job struct {
 	NextRun time.Time
 }
 
-func newJob(description, routingKey string, interval time.Duration, oneOff bool) *Job {
+type JobKey struct {
+	// Path is where the job is going to be POSTed when it's time came.
+	Path string
+	// Body of POST request.
+	Body string
+}
+
+func newJob(path, body string, interval time.Duration, oneOff bool) *Job {
 	j := Job{
-		Body:    description,
-		Path:    routingKey,
+		JobKey: JobKey{
+			Path: path,
+			Body: body,
+		},
 		NextRun: time.Now().UTC().Add(interval),
 	}
 	if !oneOff {

@@ -29,7 +29,7 @@ type Dalga struct {
 	table       *table
 	listener    net.Listener
 	client      http.Client
-	runningJobs map[string]struct{}
+	runningJobs map[JobKey]struct{}
 	m           sync.Mutex
 	wg          sync.WaitGroup
 	// to wake up scheduler when a new job is scheduled or cancelled
@@ -47,7 +47,7 @@ type Dalga struct {
 func New(config Config) *Dalga {
 	d := &Dalga{
 		config:           config,
-		runningJobs:      make(map[string]struct{}),
+		runningJobs:      make(map[JobKey]struct{}),
 		notify:           make(chan struct{}, 1),
 		ready:            make(chan struct{}),
 		shutdown:         make(chan struct{}),
@@ -249,14 +249,13 @@ func (d *Dalga) execute(j *Job) error {
 		defer d.wg.Done()
 
 		// Do not do multiple POSTs for the same job at the same time.
-		key := j.Path + "\\" + j.Body
 		d.m.Lock()
-		if _, ok := d.runningJobs[key]; ok {
-			debug("job is already running", key)
+		if _, ok := d.runningJobs[j.JobKey]; ok {
+			debug("job is already running", j.JobKey)
 			d.m.Unlock()
 			return
 		}
-		d.runningJobs[key] = struct{}{}
+		d.runningJobs[j.JobKey] = struct{}{}
 		d.m.Unlock()
 
 		if ok := d.retryPostJob(j); ok && j.Interval == 0 {
@@ -266,7 +265,7 @@ func (d *Dalga) execute(j *Job) error {
 		}
 
 		d.m.Lock()
-		delete(d.runningJobs, key)
+		delete(d.runningJobs, j.JobKey)
 		d.m.Unlock()
 	}()
 

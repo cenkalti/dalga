@@ -11,7 +11,7 @@ import (
 )
 
 func (d *Dalga) serveHTTP() error {
-	const path = "/jobs/:routingKey/:jobDescription"
+	const path = "/jobs/:jobPath/:jobBody"
 	m := pat.New()
 	m.Get(path, handler(d.handleGet))
 	m.Put(path, handler(d.handleSchedule))
@@ -21,33 +21,34 @@ func (d *Dalga) serveHTTP() error {
 	return http.Serve(d.listener, m)
 }
 
-func handler(f func(w http.ResponseWriter, r *http.Request, description, routingKey string)) http.HandlerFunc {
+func handler(f func(w http.ResponseWriter, r *http.Request, jobPath, body string)) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		debug("http:", r.Method, r.RequestURI)
+		var err error
 
-		routingKeyParam := r.URL.Query().Get(":routingKey")
-		if routingKeyParam == "" {
+		jobPath := r.URL.Query().Get(":jobPath")
+		if jobPath == "" {
 			http.Error(w, "empty routing key", http.StatusBadRequest)
 			return
 		}
-		routingKey, err := url.QueryUnescape(routingKeyParam)
+		jobPath, err = url.QueryUnescape(jobPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		jobDescriptionParam := r.URL.Query().Get(":jobDescription")
-		if jobDescriptionParam == "" {
+		jobBody := r.URL.Query().Get(":jobBody")
+		if jobBody == "" {
 			http.Error(w, "empty job", http.StatusBadRequest)
 			return
 		}
-		jobDescription, err := url.QueryUnescape(jobDescriptionParam)
+		jobBody, err = url.QueryUnescape(jobBody)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		f(w, r, jobDescription, routingKey)
+		f(w, r, jobPath, jobBody)
 	})
 }
 
@@ -63,8 +64,8 @@ func getInterval(r *http.Request) (uint32, error) {
 	return uint32(i64), nil
 }
 
-func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, description, routingKey string) {
-	job, err := d.table.Get(description, routingKey)
+func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body string) {
+	job, err := d.table.Get(path, body)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -82,7 +83,7 @@ func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, description, r
 	w.Write(data)
 }
 
-func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, description, routingKey string) {
+func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, body string) {
 	interval, err := getInterval(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -93,7 +94,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 		http.Error(w, "interval can't be 0 for periodic jobs", http.StatusBadRequest)
 		return
 	}
-	job, err := d.ScheduleJob(description, routingKey, interval, oneOff)
+	job, err := d.ScheduleJob(path, body, interval, oneOff)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -108,8 +109,8 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, descripti
 	w.Write(data)
 }
 
-func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, description, routingKey string) {
-	job, err := d.TriggerJob(description, routingKey)
+func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, path, body string) {
+	job, err := d.TriggerJob(path, body)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -127,8 +128,8 @@ func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, descriptio
 	w.Write(data)
 }
 
-func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, description, routingKey string) {
-	err := d.CancelJob(description, routingKey)
+func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, path, body string) {
+	err := d.CancelJob(path, body)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
