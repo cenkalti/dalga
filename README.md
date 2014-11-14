@@ -50,7 +50,10 @@ PUT always returns 201. If there is an existing job with path and body, it will 
     Body: <job.body>
 
 Endpoint must return 200 if the job is successful.
-Anything other than 200 makes Dalga to retry the job indefinitely with an exponential backoff.
+
+Endpoint may return 204 if job is invalid. In this case Dalga will remove the job from the table.
+
+Anything other than 200 or 204 makes Dalga to retry the job indefinitely with an exponential backoff.
 
 Get the status of a job:
 
