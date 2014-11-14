@@ -256,8 +256,7 @@ func (d *Dalga) publish(j *Job) error {
 		d.activeJobs[key] = struct{}{}
 		d.m.Unlock()
 
-		d.retryPostJob(j)
-		if j.Interval == 0 {
+		if ok := d.retryPostJob(j); ok && j.Interval == 0 {
 			debug("deleting one-off job")
 			d.retryDeleteJob(j)
 		}
@@ -285,14 +284,14 @@ func (d *Dalga) postJob(j *Job) error {
 	return nil
 }
 
-func (d *Dalga) retryPostJob(j *Job) {
+func (d *Dalga) retryPostJob(j *Job) bool {
 	b := backoff.NewExponentialBackOff()
 	b.MaxElapsedTime = 0 // retry forever
 	if j.Interval > 0 {
 		b.MaxInterval = j.Interval
 	}
 	f := func() error { return d.postJob(j) }
-	retry(b, f, d.stopPublisher)
+	return retry(b, f, d.stopPublisher)
 }
 
 func (d *Dalga) retryDeleteJob(j *Job) {
@@ -301,7 +300,7 @@ func (d *Dalga) retryDeleteJob(j *Job) {
 	retry(b, f, nil)
 }
 
-func retry(b backoff.BackOff, f func() error, stop chan struct{}) {
+func retry(b backoff.BackOff, f func() error, stop chan struct{}) bool {
 	ticker := backoff.NewTicker(b)
 	for {
 		select {
@@ -310,9 +309,9 @@ func retry(b backoff.BackOff, f func() error, stop chan struct{}) {
 				log.Print(err)
 				continue
 			}
-			return
+			return true
 		case <-stop:
-			return
+			return false
 		}
 	}
 }
