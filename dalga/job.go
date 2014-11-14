@@ -20,21 +20,21 @@ type Job struct {
 	NextRun time.Time
 }
 
-func newJob(description, routingKey string, interval uint32, oneOff bool) *Job {
+func newJob(description, routingKey string, interval time.Duration, oneOff bool) *Job {
 	j := Job{
 		Body:    description,
 		Path:    routingKey,
-		NextRun: time.Now().UTC().Add(time.Duration(interval) * time.Second),
+		NextRun: time.Now().UTC().Add(interval),
 	}
-	if oneOff {
-		j.Interval = 0
+	if !oneOff {
+		j.Interval = interval
 	}
 	return &j
 }
 
 // String implements Stringer interface. Returns the job in human-readable form.
 func (j *Job) String() string {
-	return fmt.Sprintf("Job{%q, %q, %d, %s}", j.Body, j.Path, j.Interval/time.Second, j.NextRun.String()[:23])
+	return fmt.Sprintf("Job{%q, %q, %s, %s}", j.Body, j.Path, j.Interval, j.NextRun.String()[:23])
 }
 
 // Remaining returns the duration left to the job's next run time.

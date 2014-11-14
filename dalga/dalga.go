@@ -137,7 +137,7 @@ func (d *Dalga) GetJob(description, routingKey string) (*Job, error) {
 // ScheduleJob inserts a new job to the table or replaces existing one.
 // Returns the created or replaced job.
 func (d *Dalga) ScheduleJob(description, routingKey string, interval uint32, oneOff bool) (*Job, error) {
-	job := newJob(description, routingKey, interval, oneOff)
+	job := newJob(description, routingKey, time.Duration(interval)*time.Second, oneOff)
 	err := d.table.Insert(job)
 	if err != nil {
 		return nil, err
