@@ -39,7 +39,7 @@ type Dalga struct {
 	// will be closed by Shutdown method
 	shutdown chan struct{}
 	// to stop scheduler goroutine
-	stopPublisher chan struct{}
+	stopScheduler chan struct{}
 	// will be closed when scheduler goroutine is stopped
 	schedulerStopped chan struct{}
 }
@@ -51,7 +51,7 @@ func New(config Config) *Dalga {
 		notify:           make(chan struct{}, 1),
 		ready:            make(chan struct{}),
 		shutdown:         make(chan struct{}),
-		stopPublisher:    make(chan struct{}),
+		stopScheduler:    make(chan struct{}),
 		schedulerStopped: make(chan struct{}),
 	}
 	d.client.Timeout = time.Duration(config.Endpoint.Timeout) * time.Second
@@ -76,7 +76,7 @@ func (d *Dalga) Run() error {
 
 	go d.scheduler()
 	defer func() {
-		close(d.stopPublisher)
+		close(d.stopScheduler)
 		<-d.schedulerStopped
 	}()
 
@@ -142,7 +142,7 @@ func (d *Dalga) ScheduleJob(path, body string, interval uint32, oneOff bool) (*J
 	if err != nil {
 		return nil, err
 	}
-	d.notifyPublisher("new job")
+	d.notifyScheduler("new job")
 	debug("Job is scheduled:", job)
 	return job, nil
 }
@@ -157,7 +157,7 @@ func (d *Dalga) TriggerJob(path, body string) (*Job, error) {
 	if err := d.table.Insert(job); err != nil {
 		return nil, err
 	}
-	d.notifyPublisher("job is triggered")
+	d.notifyScheduler("job is triggered")
 	debug("Job is triggered:", job)
 	return job, nil
 }
@@ -168,12 +168,12 @@ func (d *Dalga) CancelJob(path, body string) error {
 	if err != nil {
 		return err
 	}
-	d.notifyPublisher("job cancelled")
+	d.notifyScheduler("job cancelled")
 	debug("Job is cancelled")
 	return nil
 }
 
-func (d *Dalga) notifyPublisher(debugMessage string) {
+func (d *Dalga) notifyScheduler(debugMessage string) {
 	select {
 	case d.notify <- struct{}{}:
 		debug("notifying scheduler:", debugMessage)
@@ -219,7 +219,7 @@ func (d *Dalga) scheduler() {
 		case <-d.notify:
 			debug("Woken up from sleep by notification")
 			continue
-		case <-d.stopPublisher:
+		case <-d.stopScheduler:
 			debug("Came quit message")
 			d.wg.Wait()
 			return
@@ -291,7 +291,7 @@ func (d *Dalga) retryPostJob(j *Job) bool {
 		b.MaxInterval = j.Interval
 	}
 	f := func() error { return d.postJob(j) }
-	return retry(b, f, d.stopPublisher)
+	return retry(b, f, d.stopScheduler)
 }
 
 func (d *Dalga) retryDeleteJob(j *Job) {
