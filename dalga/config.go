@@ -17,6 +17,7 @@ var DefaultConfig = Config{
 	},
 	Endpoint: endpointConfig{
 		BaseURL: "http://127.0.0.1:5000/",
+		Timeout: 10,
 	},
 }
 
