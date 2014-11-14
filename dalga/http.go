@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/bmizerany/pat"
 )
@@ -89,7 +90,16 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	oneOff := r.FormValue("one-off") != ""
+	var oneOff bool
+	switch strings.ToLower(r.FormValue("one-off")) {
+	case "1", "true", "yes", "on":
+		oneOff = true
+	case "0", "false", "no", "off", "":
+		oneOff = false
+	default:
+		http.Error(w, "invalid one-off param", http.StatusBadRequest)
+		return
+	}
 	if !oneOff && interval == 0 {
 		http.Error(w, "interval can't be 0 for periodic jobs", http.StatusBadRequest)
 		return
