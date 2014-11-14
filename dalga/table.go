@@ -40,7 +40,7 @@ func (t *table) Get(path, body string) (*Job, error) {
 	row := t.db.QueryRow("SELECT path, body, `interval`, next_run "+
 		"FROM "+t.name+" "+
 		"WHERE path = ? AND body = ?",
-		body, path)
+		path, body)
 	var j Job
 	var interval uint32
 	err := row.Scan(&j.Path, &j.Body, &interval, &j.NextRun)
