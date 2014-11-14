@@ -65,7 +65,7 @@ func getInterval(r *http.Request) (uint32, error) {
 }
 
 func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body string) {
-	job, err := d.table.Get(path, body)
+	job, err := d.Jobs.Get(path, body)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -94,7 +94,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 		http.Error(w, "interval can't be 0 for periodic jobs", http.StatusBadRequest)
 		return
 	}
-	job, err := d.ScheduleJob(path, body, interval, oneOff)
+	job, err := d.Jobs.Schedule(path, body, interval, oneOff)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -110,7 +110,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 }
 
 func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, path, body string) {
-	job, err := d.TriggerJob(path, body)
+	job, err := d.Jobs.Trigger(path, body)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -129,7 +129,7 @@ func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, path, body
 }
 
 func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, path, body string) {
-	err := d.CancelJob(path, body)
+	err := d.Jobs.Cancel(path, body)
 	if err == ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -142,17 +142,15 @@ func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, path, body 
 }
 
 func (d *Dalga) handleStatus(w http.ResponseWriter, r *http.Request) {
-	count, err := d.table.Count()
+	count, err := d.Jobs.Total()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	d.m.Lock()
 	m := map[string]interface{}{
-		"running_jobs": len(d.runningJobs),
+		"running_jobs": d.Jobs.Running(),
 		"total_jobs":   count,
 	}
-	d.m.Unlock()
 	data, err := json.Marshal(m)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

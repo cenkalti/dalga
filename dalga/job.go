@@ -7,11 +7,11 @@ import (
 )
 
 // Job is the record stored in jobs table.
-// Primary key is (Path, Body).
+// Primary key for the table is JobKey.
 type Job struct {
 	JobKey
 	// Interval is the duration between each POST to the endpoint.
-	// If interval is 0 job will be deleted after POST returns 200.
+	// Interval is 0 for one-off jobs.
 	Interval time.Duration
 	// NextRun is the next run time of the job, stored in UTC.
 	NextRun time.Time
@@ -38,16 +38,17 @@ func newJob(path, body string, interval time.Duration, oneOff bool) *Job {
 	return &j
 }
 
-// String implements Stringer interface. Returns the job in human-readable form.
+// String returns the job in human-readable form.
 func (j *Job) String() string {
 	return fmt.Sprintf("Job{%q, %q, %s, %s}", j.Body, j.Path, j.Interval, j.NextRun.String()[:23])
 }
 
+// OneOff returns true for one-off jobs. One-off jobs are stored with 0 interval on jobs table.
 func (j *Job) OneOff() bool {
 	return j.Interval == 0
 }
 
-// Remaining returns the duration left to the job's next run time.
+// Remaining returns the remaining time to the job's next run time.
 func (j *Job) Remaining() time.Duration {
 	return j.NextRun.Sub(time.Now().UTC())
 }

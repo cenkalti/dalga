@@ -64,7 +64,10 @@ func TestSchedule(t *testing.T) {
 	http.HandleFunc("/", endpoint)
 	go http.ListenAndServe("127.0.0.1:5000", nil)
 
-	d := New(config)
+	d, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	err = d.CreateTable()
 	if err != nil {

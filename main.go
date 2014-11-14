@@ -26,7 +26,10 @@ func main() {
 		}
 	}
 
-	d := dalga.New(c)
+	d, err := dalga.New(c)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if *createTable {
 		if err := d.CreateTable(); err != nil {
