@@ -42,6 +42,8 @@ Schedule a new job to run every 60 seconds:
 
     {"job":"1234","routing_key":"check_feed","interval":60,"next_run":"2014-11-11T22:11:40Z"}
 
+PUT always returns 201. If there is an existing job with path and body, it will be rescheduled.
+
 60 seconds later, Dalga makes a POST to your endpoint defined in config:
 
     Path: <config.baseurl>/<job.path>
@@ -60,11 +62,15 @@ Get the status of a job:
 
     {"job":"1234","routing_key":"check_feed","interval":60,"next_run":"2014-11-11T22:12:41Z"}
 
+GET may return 404 if job is not found.
+
 Cancel previously scheduled job:
 
     $ curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1234'
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 22:13:35 GMT
+
+Delete may return 404 if job is not found.
 
 Set `one-off=true` to schedule a one-off job:
 
@@ -75,3 +81,15 @@ Set `one-off=true` to schedule a one-off job:
     Content-Length: 88
 
     {"job":"1234","routing_key":"check_feed","interval":0,"next_run":"2014-11-12T08:54:21Z"}
+
+One-off jobs are deleted after your endpoint returns 200 to Dalga.
+
+You may trigger a job manually by sending a POST request:
+
+    $ curl -i -X POST 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60'
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+    Date: Fri, 14 Nov 2014 09:09:01 GMT
+    Content-Length: 89
+
+    {"routing_key":"check_feed","body":"1234","interval":0,"next_run":"2014-11-14T09:09:01Z"}
