@@ -17,6 +17,7 @@ func (d *Dalga) serveHTTP() error {
 	m.Put(path, handler(d.handleSchedule))
 	m.Post(path, handler(d.handleTrigger))
 	m.Del(path, handler(d.handleCancel))
+	m.Get("/status", http.HandlerFunc(d.handleStatus))
 	return http.Serve(d.listener, m)
 }
 
@@ -137,4 +138,25 @@ func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, description
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (d *Dalga) handleStatus(w http.ResponseWriter, r *http.Request) {
+	count, err := d.table.Count()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	d.m.Lock()
+	m := map[string]interface{}{
+		"running_jobs": len(d.runningJobs),
+		"total_jobs":   count,
+	}
+	d.m.Unlock()
+	data, err := json.Marshal(m)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
 }

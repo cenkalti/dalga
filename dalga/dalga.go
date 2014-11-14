@@ -24,14 +24,14 @@ func debug(args ...interface{}) {
 }
 
 type Dalga struct {
-	config     Config
-	db         *sql.DB
-	table      *table
-	listener   net.Listener
-	client     http.Client
-	activeJobs map[string]struct{}
-	m          sync.Mutex
-	wg         sync.WaitGroup
+	config      Config
+	db          *sql.DB
+	table       *table
+	listener    net.Listener
+	client      http.Client
+	runningJobs map[string]struct{}
+	m           sync.Mutex
+	wg          sync.WaitGroup
 	// to wake up scheduler when a new job is scheduled or cancelled
 	notify chan struct{}
 	// will be closed when dalga is ready to accept requests
@@ -47,7 +47,7 @@ type Dalga struct {
 func New(config Config) *Dalga {
 	d := &Dalga{
 		config:           config,
-		activeJobs:       make(map[string]struct{}),
+		runningJobs:      make(map[string]struct{}),
 		notify:           make(chan struct{}, 1),
 		ready:            make(chan struct{}),
 		shutdown:         make(chan struct{}),
@@ -251,12 +251,12 @@ func (d *Dalga) execute(j *Job) error {
 		// Do not do multiple POSTs for the same job at the same time.
 		key := j.Path + "\\" + j.Body
 		d.m.Lock()
-		if _, ok := d.activeJobs[key]; ok {
+		if _, ok := d.runningJobs[key]; ok {
 			debug("job is already running", key)
 			d.m.Unlock()
 			return
 		}
-		d.activeJobs[key] = struct{}{}
+		d.runningJobs[key] = struct{}{}
 		d.m.Unlock()
 
 		if ok := d.retryPostJob(j); ok && j.Interval == 0 {
@@ -266,7 +266,7 @@ func (d *Dalga) execute(j *Job) error {
 		}
 
 		d.m.Lock()
-		delete(d.activeJobs, key)
+		delete(d.runningJobs, key)
 		d.m.Unlock()
 	}()
 

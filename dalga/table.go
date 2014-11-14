@@ -102,3 +102,9 @@ func (t *table) UpdateNextRun(j *Job) error {
 		j.NextRun, j.Path, j.Body)
 	return err
 }
+
+// Count returns the count of scheduled jobs in the table.
+func (t *table) Count() (int64, error) {
+	var count int64
+	return count, t.db.QueryRow("SELECT COUNT(*) FROM " + t.name).Scan(&count)
+}
