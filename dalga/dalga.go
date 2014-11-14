@@ -3,12 +3,22 @@ package dalga
 import (
 	"database/sql"
 	"flag"
+	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
+
+	"github.com/fzzy/radix/redis"
 )
 
 var debugging = flag.Bool("debug", false, "turn on debug messages")
+
+const (
+	redisLockKey        = "dalga-lock"
+	redisLockExpiry     = 30 * time.Second
+	redisLockRenewAfter = 20 * time.Second
+)
 
 func debug(args ...interface{}) {
 	if *debugging {
@@ -49,6 +59,48 @@ func New(config Config) (*Dalga, error) {
 // Run Dalga. This function is blocking. Returns nil after Shutdown is called.
 func (d *Dalga) Run() error {
 	var err error
+
+	if !d.config.Redis.Zero() {
+		log.Print("Connecting to Redis")
+		client, err := redis.Dial("tcp", d.config.Redis.Addr())
+		if err != nil {
+			return err
+		}
+		hostname, err := os.Hostname()
+		if err != nil {
+			return err
+		}
+		value := fmt.Sprintf("%d@%s", os.Getpid(), hostname)
+		reply := client.Cmd("SET", redisLockKey, value, "NX", "PX", int(redisLockExpiry/time.Millisecond))
+		if reply.Err != nil {
+			log.Print("Cannot acquire Redis lock")
+			return reply.Err
+		}
+		log.Print("Acquired Redis lock")
+		go func() {
+			for {
+				select {
+				case <-time.After(redisLockRenewAfter):
+					log.Print("Renewing Redis lock")
+					reply := client.Cmd("EVAL", `
+					if redis.call("GET", KEYS[1]) == ARGV[1] then
+						return redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
+					else
+						return 0
+					end
+					`, 1, redisLockKey, value, int(redisLockExpiry/time.Millisecond))
+					if reply.Err != nil {
+						log.Print(reply.Err)
+						d.Shutdown()
+						return
+					}
+				case <-d.scheduler.NotifyDone():
+					client.Cmd("DEL", redisLockKey)
+					return
+				}
+			}
+		}()
+	}
 
 	d.db, err = sql.Open("mysql", d.config.MySQL.DSN())
 	if err != nil {
