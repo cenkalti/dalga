@@ -8,7 +8,6 @@ import (
 	"os/signal"
 
 	"github.com/cenkalti/dalga/dalga"
-	"github.com/cenkalti/dalga/vendor/code.google.com/p/gcfg"
 )
 
 var (
@@ -21,7 +20,7 @@ func main() {
 
 	c := dalga.DefaultConfig
 	if *config != "" {
-		if err := gcfg.ReadFileInto(&c, *config); err != nil {
+		if err := c.LoadFromFile(*config); err != nil {
 			log.Fatal(err)
 		}
 	}

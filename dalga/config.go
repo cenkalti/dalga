@@ -1,6 +1,10 @@
 package dalga
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/code.google.com/p/gcfg"
+)
 
 var DefaultConfig = Config{
 	MySQL: mysqlConfig{
@@ -26,6 +30,10 @@ type Config struct {
 	Listen   listenConfig
 	Endpoint endpointConfig
 	Redis    redisConfig
+}
+
+func (c *Config) LoadFromFile(filename string) error {
+	return gcfg.ReadFileInto(c, filename)
 }
 
 type mysqlConfig struct {
