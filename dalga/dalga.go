@@ -247,9 +247,10 @@ func (d *Dalga) execute(j *Job) error {
 	d.wg.Add(1)
 	go func() {
 		// Do not do multiple POSTs for the same job at the same time.
-		key := j.Path + j.Body
+		key := j.Path + "\\" + j.Body
 		d.m.Lock()
 		if _, ok := d.activeJobs[key]; ok {
+			debug("job is already running", key)
 			d.m.Unlock()
 			return
 		}
@@ -259,6 +260,7 @@ func (d *Dalga) execute(j *Job) error {
 		if ok := d.retryPostJob(j); ok && j.Interval == 0 {
 			debug("deleting one-off job")
 			d.retryDeleteJob(j)
+			d.notifyScheduler("deleted one-off job")
 		}
 
 		d.m.Lock()
@@ -272,9 +274,9 @@ func (d *Dalga) execute(j *Job) error {
 }
 
 func (d *Dalga) postJob(j *Job) error {
-	var resp *http.Response
-	var err error
-	resp, err = d.client.Post(d.config.Endpoint.BaseURL+j.Path, "text/plain", strings.NewReader(j.Body))
+	url := d.config.Endpoint.BaseURL + j.Path
+	debug("POSTing to ", url)
+	resp, err := d.client.Post(url, "text/plain", strings.NewReader(j.Body))
 	if err != nil {
 		return err
 	}
