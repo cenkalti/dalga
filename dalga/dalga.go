@@ -246,6 +246,8 @@ func (d *Dalga) execute(j *Job) error {
 
 	d.wg.Add(1)
 	go func() {
+		defer d.wg.Done()
+
 		// Do not do multiple POSTs for the same job at the same time.
 		key := j.Path + "\\" + j.Body
 		d.m.Lock()
@@ -266,8 +268,6 @@ func (d *Dalga) execute(j *Job) error {
 		d.m.Lock()
 		delete(d.activeJobs, key)
 		d.m.Unlock()
-
-		d.wg.Done()
 	}()
 
 	return nil
