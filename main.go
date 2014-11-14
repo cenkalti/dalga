@@ -42,9 +42,7 @@ func main() {
 	signal.Notify(signals, os.Interrupt, os.Kill)
 	go func() {
 		<-signals
-		if err := d.Shutdown(); err != nil {
-			log.Fatal(err)
-		}
+		d.Shutdown()
 	}()
 
 	if err := d.Run(); err != nil {

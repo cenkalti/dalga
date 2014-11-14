@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/fzzy/radix/redis"
@@ -35,7 +36,8 @@ type Dalga struct {
 	// will be closed when dalga is ready to accept requests
 	ready chan struct{}
 	// will be closed by Shutdown method
-	shutdown chan struct{}
+	shutdown     chan struct{}
+	onceShutdown sync.Once
 }
 
 func New(config Config) (*Dalga, error) {
@@ -141,9 +143,13 @@ func (d *Dalga) Run() error {
 }
 
 // Shutdown running Dalga gracefully.
-func (d *Dalga) Shutdown() error {
-	close(d.shutdown)
-	return d.listener.Close()
+func (d *Dalga) Shutdown() {
+	d.onceShutdown.Do(func() {
+		close(d.shutdown)
+		if err := d.listener.Close(); err != nil {
+			log.Print(err)
+		}
+	})
 }
 
 // NotifyReady returns a channel that will be closed when Dalga is ready to accept HTTP requests.

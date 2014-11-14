@@ -122,10 +122,7 @@ func TestSchedule(t *testing.T) {
 	}
 
 	// Teardown
-	if err := d.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
-
+	d.Shutdown()
 	<-done
 
 	// Cleanup
