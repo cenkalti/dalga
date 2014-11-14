@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/dalga/vendor/github.com/cenkalti/backoff"
-	"github.com/cenkalti/dalga/vendor/github.com/go-sql-driver/mysql"
+	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/cenkalti/backoff"
+	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/go-sql-driver/mysql"
 )
 
 type scheduler struct {

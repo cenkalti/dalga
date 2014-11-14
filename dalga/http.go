@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/cenkalti/dalga/vendor/github.com/bmizerany/pat"
+	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/bmizerany/pat"
 )
 
 func (d *Dalga) serveHTTP() error {

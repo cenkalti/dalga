@@ -1,0 +1,24 @@
+{
+	"ImportPath": "github.com/cenkalti/dalga/dalga",
+	"GoVersion": "go1.3.3",
+	"Deps": [
+		{
+			"ImportPath": "github.com/bmizerany/pat",
+			"Rev": "b8a35001b773c267eb260a691f4e5499a3531600"
+		},
+		{
+			"ImportPath": "github.com/cenkalti/backoff",
+			"Rev": "6a458ae422d1a8cbfb686ac5f4789bd82956c61b"
+		},
+		{
+			"ImportPath": "github.com/fzzy/radix/redis",
+			"Comment": "v0.4.8-2-ga3a55de",
+			"Rev": "a3a55de9c594bf531589cec9d6073d6833939336"
+		},
+		{
+			"ImportPath": "github.com/go-sql-driver/mysql",
+			"Comment": "v1.2-26-g9543750",
+			"Rev": "9543750295406ef070f7de8ae9c43ccddd44e15e"
+		}
+	]
+}

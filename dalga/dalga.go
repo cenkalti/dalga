@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cenkalti/dalga/vendor/github.com/fzzy/radix/redis"
+	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/fzzy/radix/redis"
 )
 
 var debugging = flag.Bool("debug", false, "turn on debug messages")
