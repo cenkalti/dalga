@@ -32,16 +32,16 @@ type Dalga struct {
 	activeJobs map[string]struct{}
 	m          sync.Mutex
 	wg         sync.WaitGroup
-	// to wake up publisher when a new job is scheduled or cancelled
+	// to wake up scheduler when a new job is scheduled or cancelled
 	notify chan struct{}
 	// will be closed when dalga is ready to accept requests
 	ready chan struct{}
 	// will be closed by Shutdown method
 	shutdown chan struct{}
-	// to stop publisher goroutine
+	// to stop scheduler goroutine
 	stopPublisher chan struct{}
-	// will be closed when publisher goroutine is stopped
-	publisherStopped chan struct{}
+	// will be closed when scheduler goroutine is stopped
+	schedulerStopped chan struct{}
 }
 
 func New(config Config) *Dalga {
@@ -52,7 +52,7 @@ func New(config Config) *Dalga {
 		ready:            make(chan struct{}),
 		shutdown:         make(chan struct{}),
 		stopPublisher:    make(chan struct{}),
-		publisherStopped: make(chan struct{}),
+		schedulerStopped: make(chan struct{}),
 	}
 	d.client.Timeout = time.Duration(config.Endpoint.Timeout) * time.Second
 	return d
@@ -74,10 +74,10 @@ func (d *Dalga) Run() error {
 
 	close(d.ready)
 
-	go d.publisher()
+	go d.scheduler()
 	defer func() {
 		close(d.stopPublisher)
-		<-d.publisherStopped
+		<-d.schedulerStopped
 	}()
 
 	if err = d.serveHTTP(); err != nil {
@@ -129,15 +129,15 @@ func (d *Dalga) CreateTable() error {
 	return t.Create()
 }
 
-// GetJob returns the job with description routing key.
-func (d *Dalga) GetJob(description, routingKey string) (*Job, error) {
-	return d.table.Get(description, routingKey)
+// GetJob returns the job with path and body.
+func (d *Dalga) GetJob(path, body string) (*Job, error) {
+	return d.table.Get(path, body)
 }
 
 // ScheduleJob inserts a new job to the table or replaces existing one.
 // Returns the created or replaced job.
-func (d *Dalga) ScheduleJob(description, routingKey string, interval uint32, oneOff bool) (*Job, error) {
-	job := newJob(description, routingKey, time.Duration(interval)*time.Second, oneOff)
+func (d *Dalga) ScheduleJob(path, body string, interval uint32, oneOff bool) (*Job, error) {
+	job := newJob(path, body, time.Duration(interval)*time.Second, oneOff)
 	err := d.table.Insert(job)
 	if err != nil {
 		return nil, err
@@ -147,9 +147,9 @@ func (d *Dalga) ScheduleJob(description, routingKey string, interval uint32, one
 	return job, nil
 }
 
-// TriggerJob publishes the job to RabbitMQ immediately and resets the next run time of the job.
-func (d *Dalga) TriggerJob(description, routingKey string) (*Job, error) {
-	job, err := d.GetJob(description, routingKey)
+// TriggerJob sends the job to the HTTP endpoint immediately and resets the next run time of the job.
+func (d *Dalga) TriggerJob(path, body string) (*Job, error) {
+	job, err := d.GetJob(path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -162,9 +162,9 @@ func (d *Dalga) TriggerJob(description, routingKey string) (*Job, error) {
 	return job, nil
 }
 
-// CancelJob deletes the job with description and routing key.
-func (d *Dalga) CancelJob(description, routingKey string) error {
-	err := d.table.Delete(description, routingKey)
+// CancelJob deletes the job with path and body.
+func (d *Dalga) CancelJob(path, body string) error {
+	err := d.table.Delete(path, body)
 	if err != nil {
 		return err
 	}
@@ -176,14 +176,14 @@ func (d *Dalga) CancelJob(description, routingKey string) error {
 func (d *Dalga) notifyPublisher(debugMessage string) {
 	select {
 	case d.notify <- struct{}{}:
-		debug("notifying publisher:", debugMessage)
+		debug("notifying scheduler:", debugMessage)
 	default:
 	}
 }
 
-// publisher runs a loop that reads the next Job from the queue and publishes it.
-func (d *Dalga) publisher() {
-	defer close(d.publisherStopped)
+// scheduler runs a loop that reads the next Job from the queue and executees it.
+func (d *Dalga) scheduler() {
+	defer close(d.schedulerStopped)
 
 	for {
 		debug("---")
@@ -212,7 +212,7 @@ func (d *Dalga) publisher() {
 		select {
 		case <-after:
 			debug("Job sleep time finished")
-			if err = d.publish(job); err != nil {
+			if err = d.execute(job); err != nil {
 				log.Print(err)
 				time.Sleep(time.Second)
 			}
@@ -227,9 +227,9 @@ func (d *Dalga) publisher() {
 	}
 }
 
-// publish makes a POST request to the endpoint and updates the Job's next run time.
-func (d *Dalga) publish(j *Job) error {
-	debug("publish", *j)
+// execute makes a POST request to the endpoint and updates the Job's next run time.
+func (d *Dalga) execute(j *Job) error {
+	debug("execute", *j)
 
 	var add time.Duration
 	if j.Interval == 0 {
