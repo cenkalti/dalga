@@ -36,10 +36,10 @@ func main() {
 		return
 	}
 
-	interruptC := make(chan os.Signal)
-	signal.Notify(interruptC, os.Interrupt)
+	signals := make(chan os.Signal)
+	signal.Notify(signals, os.Interrupt, os.Kill)
 	go func() {
-		<-interruptC
+		<-signals
 		if err := d.Shutdown(); err != nil {
 			log.Fatal(err)
 		}
