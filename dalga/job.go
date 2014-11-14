@@ -22,12 +22,12 @@ type Job struct {
 
 func newJob(description, routingKey string, interval uint32, oneOff bool) *Job {
 	j := Job{
-		Body:     description,
-		Path:     routingKey,
-		Interval: time.Duration(interval) * time.Second,
+		Body:    description,
+		Path:    routingKey,
+		NextRun: time.Now().UTC().Add(time.Duration(interval) * time.Second),
 	}
-	if !oneOff {
-		j.NextRun = time.Now().UTC().Add(j.Interval)
+	if oneOff {
+		j.Interval = 0
 	}
 	return &j
 }
