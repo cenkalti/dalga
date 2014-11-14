@@ -43,6 +43,10 @@ func (j *Job) String() string {
 	return fmt.Sprintf("Job{%q, %q, %s, %s}", j.Body, j.Path, j.Interval, j.NextRun.String()[:23])
 }
 
+func (j *Job) OneOff() bool {
+	return j.Interval == 0
+}
+
 // Remaining returns the duration left to the job's next run time.
 func (j *Job) Remaining() time.Duration {
 	return j.NextRun.Sub(time.Now().UTC())

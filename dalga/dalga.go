@@ -232,7 +232,7 @@ func (d *Dalga) execute(j *Job) error {
 	debug("execute", *j)
 
 	var add time.Duration
-	if j.Interval == 0 {
+	if j.OneOff() {
 		add = d.client.Timeout
 	} else {
 		add = j.Interval
@@ -258,61 +258,92 @@ func (d *Dalga) execute(j *Job) error {
 		d.runningJobs[j.JobKey] = struct{}{}
 		d.m.Unlock()
 
-		if ok := d.retryPostJob(j); ok && j.Interval == 0 {
+		defer func() {
+			d.m.Lock()
+			delete(d.runningJobs, j.JobKey)
+			d.m.Unlock()
+		}()
+
+		code := d.retryPostJob(j)
+		if code == 0 {
+			return
+		}
+
+		if j.OneOff() {
 			debug("deleting one-off job")
 			d.retryDeleteJob(j)
 			d.notifyScheduler("deleted one-off job")
+			return
 		}
 
-		d.m.Lock()
-		delete(d.runningJobs, j.JobKey)
-		d.m.Unlock()
+		if code == 204 {
+			debug("deleting not found job")
+			if err := d.deleteJob(j); err != nil {
+				log.Print(err)
+				return
+			}
+			d.notifyScheduler("deleted not found job")
+			return
+		}
 	}()
 
 	return nil
 }
 
-func (d *Dalga) postJob(j *Job) error {
+func (d *Dalga) postJob(j *Job) (code int, err error) {
 	url := d.config.Endpoint.BaseURL + j.Path
 	debug("POSTing to ", url)
 	resp, err := d.client.Post(url, "text/plain", strings.NewReader(j.Body))
 	if err != nil {
-		return err
+		return
 	}
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("endpoint error: %d", resp.StatusCode)
+	switch resp.StatusCode {
+	case 200, 204:
+		code = resp.StatusCode
+	default:
+		err = fmt.Errorf("endpoint error: %d", resp.StatusCode)
 	}
-	return nil
+	return
 }
 
-func (d *Dalga) retryPostJob(j *Job) bool {
+func (d *Dalga) retryPostJob(j *Job) interface{} {
 	b := backoff.NewExponentialBackOff()
 	b.MaxElapsedTime = 0 // retry forever
 	if j.Interval > 0 {
 		b.MaxInterval = j.Interval
 	}
-	f := func() error { return d.postJob(j) }
+	f := func() (interface{}, error) { return d.postJob(j) }
 	return retry(b, f, d.stopScheduler)
 }
 
 func (d *Dalga) retryDeleteJob(j *Job) {
 	b := backoff.NewConstantBackOff(time.Second)
-	f := func() error { return d.table.Delete(j.Path, j.Body) }
+	f := func() (interface{}, error) { return nil, d.deleteJob(j) }
 	retry(b, f, nil)
 }
 
-func retry(b backoff.BackOff, f func() error, stop chan struct{}) bool {
+func (d *Dalga) deleteJob(j *Job) error {
+	err := d.table.Delete(j.Path, j.Body)
+	if err == ErrNotExist {
+		return nil
+	}
+	return err
+}
+
+func retry(b backoff.BackOff, f func() (result interface{}, err error), stop chan struct{}) (result interface{}) {
 	ticker := backoff.NewTicker(b)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			if err := f(); err != nil {
+			var err error
+			if result, err = f(); err != nil {
 				log.Print(err)
 				continue
 			}
-			return true
+			return
 		case <-stop:
-			return false
+			return
 		}
 	}
 }
