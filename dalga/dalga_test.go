@@ -20,7 +20,8 @@ func init() {
 var (
 	testPath     = "testPath"
 	testBody     = "testBody"
-	testInterval time.Duration // zero
+	testInterval = time.Duration(0)
+	testOneOff   = "true"
 	testDelay    = time.Second
 )
 
@@ -84,7 +85,7 @@ func TestSchedule(t *testing.T) {
 
 	values := make(url.Values)
 	values.Set("interval", strconv.Itoa(int(testInterval/time.Second)))
-	values.Set("one-off", "1")
+	values.Set("one-off", testOneOff)
 
 	scheduleURL := "http://" + config.Listen.Addr() + "/jobs/" + testPath + "/" + testBody
 	req, err := http.NewRequest("PUT", scheduleURL, strings.NewReader(values.Encode()))
