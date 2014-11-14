@@ -4,8 +4,8 @@ import "fmt"
 
 var DefaultConfig = Config{
 	MySQL: mysqlConfig{
-		Host:     "localhost",
-		Port:     "3306",
+		Host:     "127.0.0.1",
+		Port:     3306,
 		DB:       "test",
 		Table:    "dalga",
 		User:     "root",
@@ -13,7 +13,7 @@ var DefaultConfig = Config{
 	},
 	Listen: listenConfig{
 		Host: "127.0.0.1",
-		Port: "34006",
+		Port: 34006,
 	},
 	Endpoint: endpointConfig{
 		BaseURL: "http://127.0.0.1:5000/",
@@ -29,7 +29,7 @@ type Config struct {
 
 type mysqlConfig struct {
 	Host     string
-	Port     string
+	Port     int
 	DB       string
 	Table    string
 	User     string
@@ -37,16 +37,16 @@ type mysqlConfig struct {
 }
 
 func (c mysqlConfig) DSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", c.User, c.Password, c.Host, c.Port, c.DB)
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true", c.User, c.Password, c.Host, c.Port, c.DB)
 }
 
 type listenConfig struct {
 	Host string
-	Port string
+	Port int
 }
 
 func (c listenConfig) Addr() string {
-	return fmt.Sprintf("%s:%s", c.Host, c.Port)
+	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
 type endpointConfig struct {
