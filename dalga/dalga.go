@@ -29,6 +29,7 @@ func debug(args ...interface{}) {
 
 type Dalga struct {
 	config    Config
+	redis     *redis.Client
 	db        *sql.DB
 	listener  net.Listener
 	Jobs      *JobManager
@@ -63,45 +64,14 @@ func (d *Dalga) Run() error {
 	var err error
 
 	if !d.config.Redis.Zero() {
-		log.Print("Connecting to Redis")
-		client, err := redis.Dial("tcp", d.config.Redis.Addr())
+		d.redis, err = redis.Dial("tcp", d.config.Redis.Addr())
 		if err != nil {
 			return err
 		}
-		hostname, err := os.Hostname()
-		if err != nil {
+		log.Print("Connected to Redis")
+		if err = d.holdRedisLock(); err != nil {
 			return err
 		}
-		value := fmt.Sprintf("%d@%s", os.Getpid(), hostname)
-		reply := client.Cmd("SET", redisLockKey, value, "NX", "PX", int(redisLockExpiry/time.Millisecond))
-		if reply.Err != nil {
-			log.Print("Cannot acquire Redis lock")
-			return reply.Err
-		}
-		log.Print("Acquired Redis lock")
-		go func() {
-			for {
-				select {
-				case <-time.After(redisLockRenewAfter):
-					log.Print("Renewing Redis lock")
-					reply := client.Cmd("EVAL", `
-					if redis.call("GET", KEYS[1]) == ARGV[1] then
-						return redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
-					else
-						return 0
-					end
-					`, 1, redisLockKey, value, int(redisLockExpiry/time.Millisecond))
-					if reply.Err != nil {
-						log.Print(reply.Err)
-						d.Shutdown()
-						return
-					}
-				case <-d.scheduler.NotifyDone():
-					client.Cmd("DEL", redisLockKey)
-					return
-				}
-			}
-		}()
 	}
 
 	d.db, err = sql.Open("mysql", d.config.MySQL.DSN())
@@ -121,6 +91,7 @@ func (d *Dalga) Run() error {
 	}
 	log.Println("Listening", d.listener.Addr())
 
+	log.Print("Dalga is ready")
 	close(d.ready)
 
 	go d.scheduler.Run()
@@ -140,6 +111,48 @@ func (d *Dalga) Run() error {
 		}
 	}
 	return err
+}
+
+func (d *Dalga) holdRedisLock() error {
+	log.Print("Acquiring Redis lock")
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+	value := fmt.Sprintf("%d@%s", os.Getpid(), hostname)
+	reply := d.redis.Cmd("SET", redisLockKey, value, "NX", "PX", int(redisLockExpiry/time.Millisecond))
+	if reply.Err != nil {
+		log.Print("Cannot acquire Redis lock")
+		return reply.Err
+	}
+	log.Print("Acquired Redis lock")
+	go d.renewRedisLock(value)
+	return nil
+}
+
+func (d *Dalga) renewRedisLock(value string) {
+	for {
+		select {
+		case <-time.After(redisLockRenewAfter):
+			debug("renewing Redis lock")
+			reply := d.redis.Cmd("EVAL", `
+				if redis.call("GET", KEYS[1]) == ARGV[1] then
+					return redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
+				else
+					return 0
+				end
+				`, 1, redisLockKey, value, int(redisLockExpiry/time.Millisecond))
+			if reply.Err != nil {
+				log.Print(reply.Err)
+				d.Shutdown()
+				return
+			}
+			debug("lock renewed")
+		case <-d.scheduler.NotifyDone():
+			d.redis.Cmd("DEL", redisLockKey)
+			return
+		}
+	}
 }
 
 // Shutdown running Dalga gracefully.
