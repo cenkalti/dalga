@@ -17,7 +17,7 @@ func init() {
 	*debugging = true
 }
 
-var (
+const (
 	testPath     = "testPath"
 	testBody     = "testBody"
 	testInterval = time.Duration(0)
