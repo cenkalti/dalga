@@ -67,14 +67,14 @@ func (d *Dalga) Run() error {
 	if err != nil {
 		return err
 	}
-	log.Println("Listening", d.listener.Addr())
+	log.Println("listening", d.listener.Addr())
 
 	if !d.config.Redis.Zero() {
 		d.redis, err = redis.Dial("tcp", d.config.Redis.Addr())
 		if err != nil {
 			return err
 		}
-		log.Print("Connected to Redis")
+		log.Print("connected to redis")
 		if err = d.holdRedisLock(); err != nil {
 			return err
 		}
@@ -89,9 +89,9 @@ func (d *Dalga) Run() error {
 	if err = d.db.Ping(); err != nil {
 		return err
 	}
-	log.Print("Connected to MySQL")
+	log.Print("connected to mysql")
 
-	log.Print("Dalga is ready")
+	log.Print("dalga is ready")
 	close(d.ready)
 
 	go d.scheduler.Run()
@@ -114,7 +114,7 @@ func (d *Dalga) Run() error {
 }
 
 func (d *Dalga) holdRedisLock() error {
-	log.Print("Acquiring Redis lock")
+	log.Print("acquiring redis lock")
 	hostname, err := os.Hostname()
 	if err != nil {
 		return err
@@ -126,9 +126,9 @@ func (d *Dalga) holdRedisLock() error {
 	}
 	status, err := reply.Str()
 	if status != "OK" {
-		return errors.New("Cannot acquire Redis lock")
+		return errors.New("cannot acquire redis lock")
 	}
-	log.Print("Acquired Redis lock")
+	log.Print("acquired redis lock")
 	go d.renewRedisLock(value)
 	return nil
 }
@@ -137,7 +137,7 @@ func (d *Dalga) renewRedisLock(value string) {
 	for {
 		select {
 		case <-time.After(redisLockRenewAfter):
-			debug("renewing Redis lock")
+			debug("renewing redis lock")
 			reply := d.redis.Cmd("EVAL", `
 				if redis.call("GET", KEYS[1]) == ARGV[1] then
 					return redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])

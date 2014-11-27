@@ -28,7 +28,7 @@ func (m *JobManager) Schedule(path, body string, interval uint32, oneOff bool) (
 		return nil, err
 	}
 	m.scheduler.WakeUp("new job")
-	debug("Job is scheduled:", job)
+	debug("job is scheduled:", job)
 	return job, nil
 }
 
@@ -43,7 +43,7 @@ func (m *JobManager) Trigger(path, body string) (*Job, error) {
 		return nil, err
 	}
 	m.scheduler.WakeUp("job is triggered")
-	debug("Job is triggered:", job)
+	debug("job is triggered:", job)
 	return job, nil
 }
 
@@ -54,7 +54,7 @@ func (m *JobManager) Cancel(path, body string) error {
 		return err
 	}
 	m.scheduler.WakeUp("job cancelled")
-	debug("Job is cancelled")
+	debug("job is cancelled")
 	return nil
 }
 

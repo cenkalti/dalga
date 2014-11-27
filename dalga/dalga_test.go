@@ -38,7 +38,7 @@ func TestSchedule(t *testing.T) {
 
 	err = db.Ping()
 	if err != nil {
-		t.Fatalf("cannot connect to MySQL: %s", err.Error())
+		t.Fatalf("cannot connect to mysql: %s", err.Error())
 	}
 
 	println("connected to db")
@@ -100,12 +100,12 @@ func TestSchedule(t *testing.T) {
 	var client http.Client
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("Cannot schedule new job: %s", err.Error())
+		t.Fatalf("cannot schedule new job: %s", err.Error())
 	}
 	var buf bytes.Buffer
 	buf.ReadFrom(resp.Body)
 	if resp.StatusCode != 201 {
-		t.Fatalf("Unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
+		t.Fatalf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
 	}
 	println("PUT response:", buf.String())
 

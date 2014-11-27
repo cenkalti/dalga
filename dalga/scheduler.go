@@ -75,7 +75,7 @@ func (s *scheduler) Run() {
 		job, err := s.table.Front()
 		if err != nil {
 			if err == sql.ErrNoRows {
-				debug("No scheduled jobs in the table")
+				debug("no scheduled jobs in the table")
 			} else if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1146 {
 				// Table doesn't exist
 				log.Fatal(myErr)
@@ -87,22 +87,22 @@ func (s *scheduler) Run() {
 		} else {
 			remaining := job.Remaining()
 			after = time.After(remaining)
-			debug("Next job:", job, "Remaining:", remaining)
+			debug("next job:", job, "remaining:", remaining)
 		}
 
 		// Sleep until the next job's run time or the webserver's wakes us up.
 		select {
 		case <-after:
-			debug("Job sleep time finished")
+			debug("job sleep time finished")
 			if err = s.execute(job); err != nil {
 				log.Print(err)
 				time.Sleep(time.Second)
 			}
 		case <-s.wakeUp:
-			debug("Woken up from sleep by notification")
+			debug("woken up from sleep by notification")
 			continue
 		case <-s.stop:
-			debug("Came quit message")
+			debug("came quit message")
 			s.wg.Wait()
 			return
 		}
