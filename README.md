@@ -38,9 +38,9 @@ Schedule a new job to run every 60 seconds:
     HTTP/1.1 201 Created
     Content-Type: application/json; charset=utf-8
     Date: Tue, 11 Nov 2014 22:10:40 GMT
-    Content-Length: 89
+    Content-Length: 82
 
-    {"job":"1234","routing_key":"check_feed","interval":60,"next_run":"2014-11-11T22:11:40Z"}
+    {"job":"1234","path":"check_feed","interval":60,"next_run":"2014-11-11T22:11:40Z"}
 
 PUT always returns 201. If there is an existing job with path and body, it will be rescheduled.
 
@@ -61,9 +61,9 @@ Get the status of a job:
     HTTP/1.1 200 OK
     Content-Type: application/json; charset=utf-8
     Date: Tue, 11 Nov 2014 22:12:21 GMT
-    Content-Length: 89
+    Content-Length: 82
 
-    {"job":"1234","routing_key":"check_feed","interval":60,"next_run":"2014-11-11T22:12:41Z"}
+    {"job":"1234","path":"check_feed","interval":60,"next_run":"2014-11-11T22:12:41Z"}
 
 GET may return 404 if job is not found.
 
@@ -79,9 +79,9 @@ Set `one-off=true` to schedule a one-off job:
     HTTP/1.1 201 Created
     Content-Type: application/json; charset=utf-8
     Date: Wed, 12 Nov 2014 08:53:21 GMT
-    Content-Length: 88
+    Content-Length: 81
 
-    {"job":"1234","routing_key":"check_feed","interval":0,"next_run":"2014-11-12T08:54:21Z"}
+    {"job":"1234","path":"check_feed","interval":0,"next_run":"2014-11-12T08:54:21Z"}
 
 One-off jobs are deleted after your endpoint returns 200 to Dalga.
 
@@ -91,6 +91,6 @@ You may trigger a job manually by sending a POST request:
     HTTP/1.1 200 OK
     Content-Type: application/json
     Date: Fri, 14 Nov 2014 09:09:01 GMT
-    Content-Length: 89
+    Content-Length: 82
 
-    {"routing_key":"check_feed","body":"1234","interval":0,"next_run":"2014-11-14T09:09:01Z"}
+    {"path":"check_feed","body":"1234","interval":0,"next_run":"2014-11-14T09:09:01Z"}

@@ -41,7 +41,7 @@ func (j *Job) Remaining() time.Duration {
 
 func (j *Job) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Path     string        `json:"routing_key"`
+		Path     string        `json:"path"`
 		Body     string        `json:"body"`
 		Interval time.Duration `json:"interval"`
 		NextRun  string        `json:"next_run"`
