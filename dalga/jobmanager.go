@@ -1,11 +1,16 @@
 package dalga
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type JobManager struct {
 	table     *table
 	scheduler *scheduler
 }
+
+var invalidArgs = errors.New("cannot determine next run")
 
 func newJobManager(t *table, s *scheduler) *JobManager {
 	return &JobManager{
@@ -21,20 +26,31 @@ func (m *JobManager) Get(path, body string) (*Job, error) {
 
 // Schedule inserts a new job to the table or replaces existing one.
 // Returns the created or replaced job.
-func (m *JobManager) Schedule(path, body string, intervalSeconds uint32, oneOff, immediate bool) (*Job, error) {
+func (m *JobManager) Schedule(path, body string, oneOff, immediate bool, firstRun *time.Time, intervalSeconds *uint32) (*Job, error) {
 	job := &Job{
 		JobKey: JobKey{
 			Path: path,
 			Body: body,
 		},
-		Interval: time.Duration(intervalSeconds) * time.Second,
-		NextRun:  time.Now().UTC(),
 	}
-	if !immediate {
-		job.NextRun = job.NextRun.Add(job.Interval)
+	if immediate {
+		job.NextRun = time.Now().UTC()
+	}
+	if intervalSeconds != nil {
+		job.Interval = time.Duration(*intervalSeconds) * time.Second
+		if !immediate {
+			job.NextRun = time.Now().UTC().Add(job.Interval)
+		}
+	}
+	if firstRun != nil {
+		job.NextRun = (*firstRun).UTC()
 	}
 	if oneOff {
 		job.Interval = 0
+	}
+
+	if job.NextRun.IsZero() {
+		return nil, invalidArgs
 	}
 
 	err := m.table.Insert(job)

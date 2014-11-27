@@ -2,12 +2,12 @@ package dalga
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/bmizerany/pat"
 )
@@ -54,18 +54,6 @@ func handler(f func(w http.ResponseWriter, r *http.Request, jobPath, body string
 	})
 }
 
-func getInterval(r *http.Request) (uint32, error) {
-	s := r.FormValue("interval")
-	if s == "" {
-		return 0, errors.New("empty interval")
-	}
-	i64, err := strconv.ParseUint(s, 10, 32)
-	if err != nil {
-		return 0, errors.New("cannot parse interval")
-	}
-	return uint32(i64), nil
-}
-
 func parseBool(r *http.Request, param string) (bool, error) {
 	switch strings.ToLower(r.FormValue(param)) {
 	case "1", "true", "yes", "on":
@@ -97,18 +85,9 @@ func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body str
 }
 
 func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, body string) {
-	interval, err := getInterval(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
 	oneOff, err := parseBool(r, "one-off")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if !oneOff && interval == 0 {
-		http.Error(w, "interval can't be 0 for periodic jobs", http.StatusBadRequest)
 		return
 	}
 	immediate, err := parseBool(r, "immediate")
@@ -116,11 +95,40 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	job, err := d.Jobs.Schedule(path, body, interval, oneOff, immediate)
+
+	var interval *uint32
+	intervalParam := r.FormValue("interval")
+	if intervalParam != "" {
+		i64, err := strconv.ParseUint(intervalParam, 10, 32)
+		if err != nil {
+			http.Error(w, "cannot parse interval", http.StatusBadRequest)
+			return
+		}
+		i32 := uint32(i64)
+		interval = &i32
+	}
+
+	var firstRun *time.Time
+	firstRunParam := r.FormValue("first-run")
+	if firstRunParam != "" {
+		t, err := time.Parse(time.RFC3339, firstRunParam)
+		if err != nil {
+			http.Error(w, "cannot parse first-run", http.StatusBadRequest)
+			return
+		}
+		firstRun = &t
+	}
+
+	job, err := d.Jobs.Schedule(path, body, oneOff, immediate, firstRun, interval)
+	if err == invalidArgs {
+		http.Error(w, "invalid arguments", http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	data, err := json.Marshal(job)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
