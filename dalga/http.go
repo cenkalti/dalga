@@ -96,7 +96,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 		return
 	}
 
-	var interval *uint32
+	var interval *time.Duration
 	intervalParam := r.FormValue("interval")
 	if intervalParam != "" {
 		i64, err := strconv.ParseUint(intervalParam, 10, 32)
@@ -104,8 +104,8 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 			http.Error(w, "cannot parse interval", http.StatusBadRequest)
 			return
 		}
-		i32 := uint32(i64)
-		interval = &i32
+		d := time.Duration(uint32(i64)) * time.Second
+		interval = &d
 	}
 
 	var firstRun *time.Time
@@ -121,7 +121,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 
 	job, err := d.Jobs.Schedule(path, body, oneOff, immediate, firstRun, interval)
 	if err == invalidArgs {
-		http.Error(w, "invalid arguments", http.StatusBadRequest)
+		http.Error(w, "invalid params", http.StatusBadRequest)
 		return
 	}
 	if err != nil {

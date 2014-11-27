@@ -10,7 +10,7 @@ type JobManager struct {
 	scheduler *scheduler
 }
 
-var invalidArgs = errors.New("cannot determine next run")
+var invalidArgs = errors.New("invalid arguments")
 
 func newJobManager(t *table, s *scheduler) *JobManager {
 	return &JobManager{
@@ -26,31 +26,44 @@ func (m *JobManager) Get(path, body string) (*Job, error) {
 
 // Schedule inserts a new job to the table or replaces existing one.
 // Returns the created or replaced job.
-func (m *JobManager) Schedule(path, body string, oneOff, immediate bool, firstRun *time.Time, intervalSeconds *uint32) (*Job, error) {
-	job := &Job{
-		JobKey: JobKey{
-			Path: path,
-			Body: body,
-		},
-	}
-	if immediate {
-		job.NextRun = time.Now().UTC()
-	}
-	if intervalSeconds != nil {
-		job.Interval = time.Duration(*intervalSeconds) * time.Second
-		if !immediate {
-			job.NextRun = time.Now().UTC().Add(job.Interval)
-		}
-	}
-	if firstRun != nil {
-		job.NextRun = (*firstRun).UTC()
-	}
-	if oneOff {
-		job.Interval = 0
-	}
+func (m *JobManager) Schedule(path, body string, oneOff, immediate bool, firstRun *time.Time, interval *time.Duration) (*Job, error) {
+	job := &Job{JobKey: JobKey{
+		Path: path,
+		Body: body,
+	}}
 
-	if job.NextRun.IsZero() {
-		return nil, invalidArgs
+	if oneOff && immediate {
+		if firstRun != nil || interval != nil {
+			return nil, invalidArgs
+		}
+		job.NextRun = time.Now().UTC()
+	} else if oneOff && !immediate {
+		if firstRun != nil {
+			job.NextRun = *firstRun
+		} else if interval != nil {
+			job.NextRun = time.Now().UTC().Add(*interval)
+		} else {
+			return nil, invalidArgs
+		}
+	} else if !oneOff && immediate { // periodic and immediate
+		if interval == nil {
+			return nil, invalidArgs
+		}
+		if firstRun != nil {
+			return nil, invalidArgs
+		}
+		job.Interval = *interval
+		job.NextRun = time.Now().UTC()
+	} else { // periodic
+		if interval == nil {
+			return nil, invalidArgs
+		}
+		job.Interval = *interval
+		if firstRun != nil {
+			job.NextRun = *firstRun
+		} else {
+			job.NextRun = time.Now().UTC().Add(*interval)
+		}
 	}
 
 	err := m.table.Insert(job)
