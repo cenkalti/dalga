@@ -73,8 +73,6 @@ Cancel previously scheduled job:
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 22:13:35 GMT
 
-Delete may return 404 if job is not found.
-
 Set `one-off=true` to schedule a one-off job:
 
     $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60&one-off=true'
