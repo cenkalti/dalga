@@ -2,6 +2,7 @@ package dalga
 
 import (
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -62,6 +63,11 @@ func New(config Config) (*Dalga, error) {
 // Run Dalga. This function is blocking. Returns nil after Shutdown is called.
 func (d *Dalga) Run() error {
 	var err error
+	d.listener, err = net.Listen("tcp", d.config.Listen.Addr())
+	if err != nil {
+		return err
+	}
+	log.Println("Listening", d.listener.Addr())
 
 	if !d.config.Redis.Zero() {
 		d.redis, err = redis.Dial("tcp", d.config.Redis.Addr())
@@ -84,12 +90,6 @@ func (d *Dalga) Run() error {
 		return err
 	}
 	log.Print("Connected to MySQL")
-
-	d.listener, err = net.Listen("tcp", d.config.Listen.Addr())
-	if err != nil {
-		return err
-	}
-	log.Println("Listening", d.listener.Addr())
 
 	log.Print("Dalga is ready")
 	close(d.ready)
@@ -119,11 +119,14 @@ func (d *Dalga) holdRedisLock() error {
 	if err != nil {
 		return err
 	}
-	value := fmt.Sprintf("%d@%s", os.Getpid(), hostname)
+	value := fmt.Sprintf("%s:%d", hostname, d.listener.Addr().(*net.TCPAddr).Port)
 	reply := d.redis.Cmd("SET", redisLockKey, value, "NX", "PX", int(redisLockExpiry/time.Millisecond))
 	if reply.Err != nil {
-		log.Print("Cannot acquire Redis lock")
 		return reply.Err
+	}
+	status, err := reply.Str()
+	if status != "OK" {
+		return errors.New("Cannot acquire Redis lock")
 	}
 	log.Print("Acquired Redis lock")
 	go d.renewRedisLock(value)
