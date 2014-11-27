@@ -124,7 +124,7 @@ func (d *Dalga) holdRedisLock() error {
 	if reply.Err != nil {
 		return reply.Err
 	}
-	status, err := reply.Str()
+	status, _ := reply.Str()
 	if status != "OK" {
 		return errors.New("cannot acquire redis lock")
 	}
@@ -147,6 +147,12 @@ func (d *Dalga) renewRedisLock(value string) {
 				`, 1, redisLockKey, value, int(redisLockExpiry/time.Millisecond))
 			if reply.Err != nil {
 				log.Print(reply.Err)
+				d.Shutdown()
+				return
+			}
+			status, _ := reply.Str()
+			if status != "OK" {
+				log.Print("cannot renew redis lock")
 				d.Shutdown()
 				return
 			}
