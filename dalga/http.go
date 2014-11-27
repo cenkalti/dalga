@@ -140,11 +140,7 @@ func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, path, body
 
 func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, path, body string) {
 	err := d.Jobs.Cancel(path, body)
-	if err == ErrNotExist {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	if err != nil {
+	if err != nil && err != ErrNotExist {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
