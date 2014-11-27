@@ -3,6 +3,7 @@ package dalga
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -65,6 +66,17 @@ func getInterval(r *http.Request) (uint32, error) {
 	return uint32(i64), nil
 }
 
+func parseBool(r *http.Request, param string) (bool, error) {
+	switch strings.ToLower(r.FormValue(param)) {
+	case "1", "true", "yes", "on":
+		return true, nil
+	case "0", "false", "no", "off", "":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid param: %s", param)
+	}
+}
+
 func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body string) {
 	job, err := d.Jobs.Get(path, body)
 	if err == ErrNotExist {
@@ -90,21 +102,21 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var oneOff bool
-	switch strings.ToLower(r.FormValue("one-off")) {
-	case "1", "true", "yes", "on":
-		oneOff = true
-	case "0", "false", "no", "off", "":
-		oneOff = false
-	default:
-		http.Error(w, "invalid one-off param", http.StatusBadRequest)
+	oneOff, err := parseBool(r, "one-off")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if !oneOff && interval == 0 {
 		http.Error(w, "interval can't be 0 for periodic jobs", http.StatusBadRequest)
 		return
 	}
-	job, err := d.Jobs.Schedule(path, body, interval, oneOff)
+	immediate, err := parseBool(r, "immediate")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	job, err := d.Jobs.Schedule(path, body, interval, oneOff, immediate)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

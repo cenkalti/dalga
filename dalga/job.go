@@ -24,20 +24,6 @@ type JobKey struct {
 	Body string
 }
 
-func newJob(path, body string, interval time.Duration, oneOff bool) *Job {
-	j := Job{
-		JobKey: JobKey{
-			Path: path,
-			Body: body,
-		},
-		NextRun: time.Now().UTC().Add(interval),
-	}
-	if !oneOff {
-		j.Interval = interval
-	}
-	return &j
-}
-
 // String returns the job in human-readable form.
 func (j *Job) String() string {
 	return fmt.Sprintf("Job{%q, %q, %s, %s}", j.Body, j.Path, j.Interval, j.NextRun.String()[:23])

@@ -21,8 +21,22 @@ func (m *JobManager) Get(path, body string) (*Job, error) {
 
 // Schedule inserts a new job to the table or replaces existing one.
 // Returns the created or replaced job.
-func (m *JobManager) Schedule(path, body string, interval uint32, oneOff bool) (*Job, error) {
-	job := newJob(path, body, time.Duration(interval)*time.Second, oneOff)
+func (m *JobManager) Schedule(path, body string, intervalSeconds uint32, oneOff, immediate bool) (*Job, error) {
+	job := &Job{
+		JobKey: JobKey{
+			Path: path,
+			Body: body,
+		},
+		Interval: time.Duration(intervalSeconds) * time.Second,
+		NextRun:  time.Now().UTC(),
+	}
+	if !immediate {
+		job.NextRun = job.NextRun.Add(job.Interval)
+	}
+	if oneOff {
+		job.Interval = 0
+	}
+
 	err := m.table.Insert(job)
 	if err != nil {
 		return nil, err
