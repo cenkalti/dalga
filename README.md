@@ -54,9 +54,9 @@ There are 4 options that you cann pass to `Schedule` but not every combination i
     Path: <config.baseurl>/<job.path>
     Body: <job.body>
 
-Endpoint must return 200 if the job is successful.
+The endpoint must return 200 if the job is successful.
 
-Endpoint may return 204 if job is invalid. In this case Dalga will remove the job from the table.
+The endpoint may return 204 if job is invalid. In this case Dalga will remove the job from the table.
 
 Anything other than 200 or 204 makes Dalga to retry the job indefinitely with an exponential backoff.
 
