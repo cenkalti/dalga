@@ -44,6 +44,15 @@ Schedule a new job to run every 60 seconds:
 
 PUT always returns 201. If there is an existing job with path and body, it will be rescheduled.
 
+There are 4 options that you cann pass to `Schedule` but not every combination is valid:
+
+| Param | Description | Type | Example |
+| ----- | ----------- | ---- | ------- |
+| interval | Run job at intervals in seconds | Integer | 60 |
+| first-run | Do not run job until this time | RFC3339 Timestamp | 1985-04-12T23:20:50.52Z |
+| one-off | Run job only once | Boolean | true, false, yes, no, on, off, 1, 0 |
+| immediate | Run job immediately as it is scheduled | Boolean | true, false, yes, no, on, off, 1, 0 |
+
 60 seconds later, Dalga makes a POST to your endpoint defined in config:
 
     Path: <config.baseurl>/<job.path>
@@ -72,18 +81,6 @@ Cancel previously scheduled job:
     $ curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1234'
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 22:13:35 GMT
-
-Set `one-off=true` to schedule a one-off job:
-
-    $ curl -i -X PUT 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60&one-off=true'
-    HTTP/1.1 201 Created
-    Content-Type: application/json; charset=utf-8
-    Date: Wed, 12 Nov 2014 08:53:21 GMT
-    Content-Length: 81
-
-    {"job":"1234","path":"check_feed","interval":0,"next_run":"2014-11-12T08:54:21Z"}
-
-One-off jobs are deleted after your endpoint returns 200 to Dalga.
 
 You may trigger a job manually by sending a POST request:
 
