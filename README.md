@@ -18,10 +18,6 @@ Install
 Usage
 -----
 
-Configuration is done with a config file:
-
-    $ dalga -config dalga.ini ...
-
 Example config file is in the repository.
 
 To create the table for storing jobs:
