@@ -43,12 +43,15 @@ type Dalga struct {
 }
 
 func New(config Config) (*Dalga, error) {
+	if config.Jobs.RandomizationFactor < 0 || config.Jobs.RandomizationFactor > 1 {
+		return nil, errors.New("randomization factor must be between 0 and 1")
+	}
 	db, err := sql.Open("mysql", config.MySQL.DSN())
 	if err != nil {
 		return nil, err
 	}
 	t := &table{db, config.MySQL.Table}
-	s := newScheduler(t, config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second)
+	s := newScheduler(t, config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, config.Jobs.RandomizationFactor)
 	m := newJobManager(t, s)
 	return &Dalga{
 		config:    config,

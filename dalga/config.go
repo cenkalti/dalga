@@ -26,6 +26,7 @@ var DefaultConfig = Config{
 }
 
 type Config struct {
+	Jobs     jobsConfig
 	MySQL    mysqlConfig
 	Listen   listenConfig
 	Endpoint endpointConfig
@@ -34,6 +35,10 @@ type Config struct {
 
 func (c *Config) LoadFromFile(filename string) error {
 	return gcfg.ReadFileInto(c, filename)
+}
+
+type jobsConfig struct {
+	RandomizationFactor float64
 }
 
 type mysqlConfig struct {

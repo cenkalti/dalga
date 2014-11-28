@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,9 +15,10 @@ import (
 )
 
 type scheduler struct {
-	table   *table
-	client  http.Client
-	baseURL string
+	table               *table
+	client              http.Client
+	baseURL             string
+	randomizationFactor float64
 	// to stop scheduler goroutine
 	stop chan struct{}
 	// will be closed when scheduler goroutine is stopped
@@ -28,14 +30,15 @@ type scheduler struct {
 	wg          sync.WaitGroup
 }
 
-func newScheduler(t *table, baseURL string, clientTimeout time.Duration) *scheduler {
+func newScheduler(t *table, baseURL string, clientTimeout time.Duration, randomizationFactor float64) *scheduler {
 	s := &scheduler{
-		table:       t,
-		baseURL:     baseURL,
-		stop:        make(chan struct{}),
-		stopped:     make(chan struct{}),
-		wakeUp:      make(chan struct{}, 1),
-		runningJobs: make(map[JobKey]struct{}),
+		table:               t,
+		baseURL:             baseURL,
+		randomizationFactor: randomizationFactor,
+		stop:                make(chan struct{}),
+		stopped:             make(chan struct{}),
+		wakeUp:              make(chan struct{}, 1),
+		runningJobs:         make(map[JobKey]struct{}),
 	}
 	s.client.Timeout = clientTimeout
 	return s
@@ -109,6 +112,11 @@ func (s *scheduler) Run() {
 	}
 }
 
+func randomize(d time.Duration, f float64) time.Duration {
+	delta := time.Duration(f * float64(d))
+	return d - delta + time.Duration(float64(2*delta)*rand.Float64())
+}
+
 // execute makes a POST request to the endpoint and updates the Job's next run time.
 func (s *scheduler) execute(j *Job) error {
 	debug("execute", *j)
@@ -118,6 +126,10 @@ func (s *scheduler) execute(j *Job) error {
 		add = s.client.Timeout
 	} else {
 		add = j.Interval
+		if s.randomizationFactor > 0 {
+			// Add some randomization to periodic tasks.
+			add = randomize(add, s.randomizationFactor)
+		}
 	}
 
 	j.NextRun = time.Now().UTC().Add(add)
