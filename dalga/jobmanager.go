@@ -38,18 +38,15 @@ func (m *JobManager) Schedule(path, body string, oneOff, immediate bool, firstRu
 		}
 		job.NextRun = time.Now().UTC()
 	} else if oneOff && !immediate {
-		if firstRun != nil {
+		if (firstRun != nil && interval != nil) || (firstRun == nil && interval == nil) {
+			return nil, invalidArgs
+		} else if firstRun != nil {
 			job.NextRun = *firstRun
 		} else if interval != nil {
 			job.NextRun = time.Now().UTC().Add(*interval)
-		} else {
-			return nil, invalidArgs
 		}
 	} else if !oneOff && immediate { // periodic and immediate
-		if interval == nil {
-			return nil, invalidArgs
-		}
-		if firstRun != nil {
+		if interval == nil || firstRun != nil {
 			return nil, invalidArgs
 		}
 		job.Interval = *interval
