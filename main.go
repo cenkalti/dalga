@@ -14,11 +14,17 @@ import (
 
 var (
 	config      = flag.String("config", "", "config file")
+	version     = flag.Bool("version", false, "print version")
 	createTable = flag.Bool("create-table", false, "create table for storing jobs")
 )
 
 func main() {
 	flag.Parse()
+
+	if *version {
+		fmt.Println(dalga.Version)
+		return
+	}
 
 	c := dalga.DefaultConfig
 	if *config != "" {

@@ -14,6 +14,8 @@ import (
 	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/fzzy/radix/redis"
 )
 
+const Version = "1.0.0"
+
 var debugging = flag.Bool("debug", false, "turn on debug messages")
 
 const (
