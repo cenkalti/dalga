@@ -40,7 +40,7 @@ Schedule a new job to run every 60 seconds:
 
 PUT always returns 201. If there is an existing job with path and body, it will be rescheduled.
 
-There are 4 options that you cann pass to `Schedule` but not every combination is valid:
+There are 4 options that you can pass to `Schedule` but not every combination is valid:
 
 | Param | Description | Type | Example |
 | ----- | ----------- | ---- | ------- |
