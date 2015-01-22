@@ -200,14 +200,15 @@ func (s *scheduler) postJob(j *Job) (code int, err error) {
 	return
 }
 
-func (s *scheduler) retryPostJob(j *Job) interface{} {
+func (s *scheduler) retryPostJob(j *Job) (code int) {
 	b := backoff.NewExponentialBackOff()
 	b.MaxElapsedTime = 0 // retry forever
 	if j.Interval > 0 {
 		b.MaxInterval = j.Interval
 	}
 	f := func() (interface{}, error) { return s.postJob(j) }
-	return retry(b, f, s.stop)
+	code, _ = retry(b, f, s.stop).(int)
+	return
 }
 
 func (s *scheduler) retryDeleteJob(j *Job) {
