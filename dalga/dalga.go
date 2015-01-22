@@ -34,6 +34,7 @@ type Dalga struct {
 	config    Config
 	redis     *redis.Client
 	db        *sql.DB
+	table     *table
 	listener  net.Listener
 	Jobs      *JobManager
 	scheduler *scheduler
@@ -53,14 +54,12 @@ func New(config Config) (*Dalga, error) {
 		return nil, err
 	}
 	t := &table{db: db, name: config.MySQL.Table}
-	if err := t.Prepare(); err != nil {
-		return nil, err
-	}
 	s := newScheduler(t, config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, config.Jobs.RandomizationFactor)
 	m := newJobManager(t, s)
 	return &Dalga{
 		config:    config,
 		db:        db,
+		table:     t,
 		Jobs:      m,
 		scheduler: s,
 		ready:     make(chan struct{}),
@@ -107,6 +106,10 @@ func (d *Dalga) Run() error {
 		return err
 	}
 	log.Print("connected to mysql")
+
+	if err = d.table.Prepare(); err != nil {
+		return err
+	}
 
 	log.Print("dalga is ready")
 	close(d.ready)
