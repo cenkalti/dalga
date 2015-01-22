@@ -52,7 +52,10 @@ func New(config Config) (*Dalga, error) {
 	if err != nil {
 		return nil, err
 	}
-	t := &table{db, config.MySQL.Table}
+	t := &table{db: db, name: config.MySQL.Table}
+	if err := t.Prepare(); err != nil {
+		return nil, err
+	}
 	s := newScheduler(t, config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, config.Jobs.RandomizationFactor)
 	m := newJobManager(t, s)
 	return &Dalga{
@@ -193,6 +196,6 @@ func (d *Dalga) CreateTable() error {
 		return err
 	}
 	defer db.Close()
-	t := &table{db, d.config.MySQL.Table}
+	t := &table{db: db, name: d.config.MySQL.Table}
 	return t.Create()
 }
