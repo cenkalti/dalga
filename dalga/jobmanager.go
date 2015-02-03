@@ -10,7 +10,7 @@ type JobManager struct {
 	scheduler *scheduler
 }
 
-var invalidArgs = errors.New("invalid arguments")
+var errInvalidArgs = errors.New("invalid arguments")
 
 func newJobManager(t *table, s *scheduler) *JobManager {
 	return &JobManager{
@@ -34,12 +34,12 @@ func (m *JobManager) Schedule(path, body string, oneOff, immediate bool, firstRu
 
 	if oneOff && immediate {
 		if firstRun != nil || interval != nil {
-			return nil, invalidArgs
+			return nil, errInvalidArgs
 		}
 		job.NextRun = time.Now().UTC()
 	} else if oneOff && !immediate {
 		if (firstRun != nil && interval != nil) || (firstRun == nil && interval == nil) {
-			return nil, invalidArgs
+			return nil, errInvalidArgs
 		} else if firstRun != nil {
 			job.NextRun = *firstRun
 		} else if interval != nil {
@@ -47,13 +47,13 @@ func (m *JobManager) Schedule(path, body string, oneOff, immediate bool, firstRu
 		}
 	} else if !oneOff && immediate { // periodic and immediate
 		if interval == nil || firstRun != nil {
-			return nil, invalidArgs
+			return nil, errInvalidArgs
 		}
 		job.Interval = *interval
 		job.NextRun = time.Now().UTC()
 	} else { // periodic
 		if interval == nil {
-			return nil, invalidArgs
+			return nil, errInvalidArgs
 		}
 		job.Interval = *interval
 		if firstRun != nil {

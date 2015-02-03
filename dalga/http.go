@@ -120,7 +120,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 	}
 
 	job, err := d.Jobs.Schedule(path, body, oneOff, immediate, firstRun, interval)
-	if err == invalidArgs {
+	if err == errInvalidArgs {
 		http.Error(w, "invalid params", http.StatusBadRequest)
 		return
 	}
