@@ -1,7 +1,7 @@
 Dalga
 =====
 
-[![Build Status](https://travis-ci.org/cenkalti/dalga.png)](https://travis-ci.org/cenkalti/dalga)
+[![Build Status](https://travis-ci.org/cenk/dalga.png)](https://travis-ci.org/cenk/dalga)
 
 Dalga is a job scheduler.
 
@@ -13,7 +13,7 @@ Dalga is a job scheduler.
 Install
 -------
 
-    $ go get github.com/cenkalti/dalga
+    $ go get github.com/cenk/dalga
 
 Usage
 -----
