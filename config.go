@@ -30,7 +30,6 @@ type Config struct {
 	MySQL    mysqlConfig
 	Listen   listenConfig
 	Endpoint endpointConfig
-	Redis    redisConfig
 }
 
 func (c *Config) LoadFromFile(filename string) error {
@@ -66,19 +65,4 @@ func (c listenConfig) Addr() string {
 type endpointConfig struct {
 	BaseURL string
 	Timeout int
-}
-
-type redisConfig struct {
-	Host string
-	Port int
-	DB   int
-}
-
-func (c redisConfig) Zero() bool {
-	zero := redisConfig{}
-	return c == zero
-}
-
-func (c redisConfig) Addr() string {
-	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }

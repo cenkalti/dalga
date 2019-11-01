@@ -4,25 +4,15 @@ import (
 	"database/sql"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
-
-	"github.com/fzzy/radix/redis"
 )
 
 const Version = "1.0.0"
 
 var debugging = flag.Bool("debug", false, "turn on debug messages")
-
-const (
-	redisLockKey        = "dalga-lock"
-	redisLockExpiry     = 30 * time.Second
-	redisLockRenewAfter = 20 * time.Second
-)
 
 func debug(args ...interface{}) {
 	if *debugging {
@@ -32,7 +22,6 @@ func debug(args ...interface{}) {
 
 type Dalga struct {
 	config    Config
-	redis     *redis.Client
 	db        *sql.DB
 	table     *table
 	listener  net.Listener
@@ -76,26 +65,6 @@ func (d *Dalga) Run() error {
 	}
 	log.Println("listening", d.listener.Addr())
 
-	if !d.config.Redis.Zero() {
-		hostname, err := os.Hostname()
-		if err != nil {
-			return err
-		}
-		value := fmt.Sprintf("%s:%d", hostname, d.listener.Addr().(*net.TCPAddr).Port)
-
-		d.redis, err = redis.Dial("tcp", d.config.Redis.Addr())
-		if err != nil {
-			return err
-		}
-		log.Print("connected to redis")
-
-		if err = d.acquireRedisLock(value); err != nil {
-			return err
-		}
-		defer d.redis.Cmd("DEL", redisLockKey) // release lock before exit
-		go d.renewRedisLock(value)
-	}
-
 	d.db, err = sql.Open("mysql", d.config.MySQL.DSN())
 	if err != nil {
 		return err
@@ -131,50 +100,6 @@ func (d *Dalga) Run() error {
 		}
 	}
 	return err
-}
-
-func (d *Dalga) acquireRedisLock(value string) error {
-	log.Print("acquiring redis lock")
-	reply := d.redis.Cmd("SET", redisLockKey, value, "NX", "PX", int(redisLockExpiry/time.Millisecond))
-	if reply.Err != nil {
-		return reply.Err
-	}
-	status, _ := reply.Str()
-	if status != "OK" {
-		return errors.New("cannot acquire redis lock")
-	}
-	log.Print("acquired redis lock")
-	return nil
-}
-
-func (d *Dalga) renewRedisLock(value string) {
-	for {
-		select {
-		case <-time.After(redisLockRenewAfter):
-			debug("renewing redis lock")
-			reply := d.redis.Cmd("EVAL", `
-				if redis.call("GET", KEYS[1]) == ARGV[1] then
-					return redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
-				else
-					return 0
-				end
-				`, 1, redisLockKey, value, int(redisLockExpiry/time.Millisecond))
-			if reply.Err != nil {
-				log.Print(reply.Err)
-				d.Shutdown()
-				return
-			}
-			status, _ := reply.Str()
-			if status != "OK" {
-				log.Print("cannot renew redis lock")
-				d.Shutdown()
-				return
-			}
-			debug("lock renewed")
-		case <-d.scheduler.NotifyDone():
-			return
-		}
-	}
 }
 
 // Shutdown running Dalga gracefully.
