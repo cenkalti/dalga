@@ -4,11 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/cenkalti/dalga"
 )
@@ -53,8 +51,6 @@ func main() {
 		<-signals
 		d.Shutdown()
 	}()
-
-	rand.Seed(time.Now().UnixNano())
 
 	if err := d.Run(); err != nil {
 		log.Fatal(err)
