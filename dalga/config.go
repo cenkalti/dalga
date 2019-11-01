@@ -3,7 +3,7 @@ package dalga
 import (
 	"fmt"
 
-	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/code.google.com/p/gcfg"
+	gcfg "gopkg.in/gcfg.v1"
 )
 
 var DefaultConfig = Config{
