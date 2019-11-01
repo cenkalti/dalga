@@ -6,10 +6,9 @@ require (
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
 	github.com/bmizerany/pat v0.0.0-20140625234703-b8a35001b773
 	github.com/cenkalti/backoff v0.0.0-20141021115448-6a458ae422d1
-	github.com/fzzy/radix v0.4.9-0.20141113025130-a3a55de9c594
-	github.com/go-sql-driver/mysql v1.2.1-0.20140926190841-954375029540
+	github.com/go-sql-driver/mysql v1.4.1
 	github.com/kr/pretty v0.1.0 // indirect
+	google.golang.org/appengine v1.6.5 // indirect
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
