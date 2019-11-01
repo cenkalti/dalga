@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/cenkalti/dalga"
@@ -47,7 +48,7 @@ func main() {
 	}
 
 	signals := make(chan os.Signal)
-	signal.Notify(signals, os.Interrupt, os.Kill)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-signals
 		d.Shutdown()
