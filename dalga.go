@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/fzzy/radix/redis"
+	"github.com/fzzy/radix/redis"
 )
 
 const Version = "1.0.0"

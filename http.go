@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/bmizerany/pat"
+	"github.com/bmizerany/pat"
 )
 
 func (d *Dalga) serveHTTP() error {

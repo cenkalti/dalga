@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/cenkalti/dalga/dalga"
+	"github.com/cenkalti/dalga"
 )
 
 var (

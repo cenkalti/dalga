@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/dalga/dalga/Godeps/_workspace/src/github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 )
 
 func init() {
