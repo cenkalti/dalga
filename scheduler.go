@@ -191,6 +191,7 @@ func (s *scheduler) postJob(j *Job) (code int, err error) {
 	if err != nil {
 		return
 	}
+	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case 200, 204:
 		code = resp.StatusCode

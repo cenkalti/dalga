@@ -43,8 +43,8 @@ func TestSchedule(t *testing.T) {
 
 	println("connected to db")
 
-	dropSql := "DROP TABLE " + config.MySQL.Table
-	_, err = db.Exec(dropSql)
+	dropSQL := "DROP TABLE " + config.MySQL.Table
+	_, err = db.Exec(dropSQL)
 	if err != nil {
 		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
 			t.Fatal(err)
@@ -76,15 +76,18 @@ func TestSchedule(t *testing.T) {
 
 	println("created table")
 
+	var gerr error
 	done := make(chan struct{})
 	go func() {
-		if err := d.Run(); err != nil {
-			t.Fatal(err)
-		}
+		gerr = d.Run()
 		close(done)
 	}()
 
-	<-d.NotifyReady()
+	select {
+	case <-d.NotifyReady():
+	case <-done:
+		t.Fatal(gerr)
+	}
 
 	values := make(url.Values)
 	values.Set("interval", strconv.Itoa(int(testInterval/time.Second)))
@@ -102,6 +105,7 @@ func TestSchedule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cannot schedule new job: %s", err.Error())
 	}
+	defer resp.Body.Close()
 	var buf bytes.Buffer
 	buf.ReadFrom(resp.Body)
 	if resp.StatusCode != 201 {
@@ -114,7 +118,7 @@ func TestSchedule(t *testing.T) {
 	select {
 	case body := <-called:
 		println("endpoint is called")
-		if string(body) != testBody {
+		if body != testBody {
 			t.Fatalf("Invalid body: %s", body)
 		}
 	case <-time.After(testInterval + testDelay):
@@ -126,5 +130,5 @@ func TestSchedule(t *testing.T) {
 	<-done
 
 	// Cleanup
-	db.Exec(dropSql)
+	db.Exec(dropSQL)
 }

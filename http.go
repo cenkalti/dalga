@@ -81,7 +81,7 @@ func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body str
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, body string) {
@@ -136,7 +136,7 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, path, body string) {
@@ -155,7 +155,7 @@ func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, path, body
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, path, body string) {
@@ -183,5 +183,5 @@ func (d *Dalga) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	_, _ = w.Write(data)
 }

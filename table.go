@@ -42,13 +42,13 @@ func (t *table) Prepare() error {
 	if err != nil {
 		return err
 	}
-	t.stmtInsert, err = t.db.Prepare("REPLACE INTO " + t.name +
+	t.stmtInsert, err = t.db.Prepare("REPLACE INTO " + t.name + // nolint: gosec
 		"(path, body, `interval`, next_run) " +
 		"VALUES (?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
-	t.stmtDelete, err = t.db.Prepare("DELETE FROM " + t.name + " " + "WHERE path = ? AND body = ?")
+	t.stmtDelete, err = t.db.Prepare("DELETE FROM " + t.name + " " + "WHERE path = ? AND body = ?") // nolint: gosec
 	if err != nil {
 		return err
 	}
@@ -58,13 +58,13 @@ func (t *table) Prepare() error {
 	if err != nil {
 		return err
 	}
-	t.stmtUpdate, err = t.db.Prepare("UPDATE " + t.name + " " +
+	t.stmtUpdate, err = t.db.Prepare("UPDATE " + t.name + " " + // nolint: gosec
 		"SET next_run=? " +
 		"WHERE path = ? AND body = ?")
 	if err != nil {
 		return err
 	}
-	t.stmtCount, err = t.db.Prepare("SELECT COUNT(*) FROM " + t.name)
+	t.stmtCount, err = t.db.Prepare("SELECT COUNT(*) FROM " + t.name) // nolint: gosec
 	if err != nil {
 		return err
 	}

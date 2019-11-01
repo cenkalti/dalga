@@ -32,26 +32,28 @@ func (m *JobManager) Schedule(path, body string, oneOff, immediate bool, firstRu
 		Body: body,
 	}}
 
-	if oneOff && immediate {
+	switch {
+	case oneOff && immediate:
 		if firstRun != nil || interval != nil {
 			return nil, errInvalidArgs
 		}
 		job.NextRun = time.Now().UTC()
-	} else if oneOff && !immediate {
-		if (firstRun != nil && interval != nil) || (firstRun == nil && interval == nil) {
+	case oneOff && !immediate:
+		switch {
+		case (firstRun != nil && interval != nil) || (firstRun == nil && interval == nil):
 			return nil, errInvalidArgs
-		} else if firstRun != nil {
+		case firstRun != nil:
 			job.NextRun = *firstRun
-		} else if interval != nil {
+		case interval != nil:
 			job.NextRun = time.Now().UTC().Add(*interval)
 		}
-	} else if !oneOff && immediate { // periodic and immediate
+	case !oneOff && immediate: // periodic and immediate
 		if interval == nil || firstRun != nil {
 			return nil, errInvalidArgs
 		}
 		job.Interval = *interval
 		job.NextRun = time.Now().UTC()
-	} else { // periodic
+	default: // periodic
 		if interval == nil {
 			return nil, errInvalidArgs
 		}
