@@ -1,7 +1,6 @@
 language: go
-go: 1.3.3
+go: 1.13.x
 services:
-  - rabbitmq
   - mysql
 before_script: mysql -e 'create database test;'
-script: go test -race -v ./dalga
+script: go test -race -v
