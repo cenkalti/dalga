@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,11 +17,8 @@ func init() {
 }
 
 const (
-	testPath     = "testPath"
-	testBody     = "testBody"
-	testInterval = time.Duration(0)
-	testOneOff   = "true"
-	testDelay    = time.Second
+	testBody    = "testBody"
+	testTimeout = time.Second
 )
 
 func TestSchedule(t *testing.T) {
@@ -90,10 +86,10 @@ func TestSchedule(t *testing.T) {
 	}
 
 	values := make(url.Values)
-	values.Set("interval", strconv.Itoa(int(testInterval/time.Second)))
-	values.Set("one-off", testOneOff)
+	values.Set("one-off", "true")
+	values.Set("first-run", "1990-01-01T00:00:00Z")
 
-	scheduleURL := "http://" + config.Listen.Addr() + "/jobs/" + testPath + "/" + testBody
+	scheduleURL := "http://" + config.Listen.Addr() + "/jobs/testPath/" + testBody
 	req, err := http.NewRequest("PUT", scheduleURL, strings.NewReader(values.Encode()))
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +117,7 @@ func TestSchedule(t *testing.T) {
 		if body != testBody {
 			t.Fatalf("Invalid body: %s", body)
 		}
-	case <-time.After(testInterval + testDelay):
+	case <-time.After(testTimeout):
 		t.Fatal("timeout")
 	}
 

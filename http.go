@@ -2,11 +2,9 @@ package dalga
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/bmizerany/pat"
@@ -54,17 +52,6 @@ func handler(f func(w http.ResponseWriter, r *http.Request, jobPath, body string
 	})
 }
 
-func parseBool(r *http.Request, param string) (bool, error) {
-	switch strings.ToLower(r.FormValue(param)) {
-	case "1", "true", "yes", "on":
-		return true, nil
-	case "0", "false", "no", "off", "":
-		return false, nil
-	default:
-		return false, fmt.Errorf("invalid param: %s", param)
-	}
-}
-
 func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body string) {
 	job, err := d.Jobs.Get(path, body)
 	if err == ErrNotExist {
@@ -85,18 +72,27 @@ func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body str
 }
 
 func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, body string) {
-	oneOff, err := parseBool(r, "one-off")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	immediate, err := parseBool(r, "immediate")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	var opt ScheduleOptions
+	var err error
+
+	oneOffParam := r.FormValue("one-off")
+	if oneOffParam != "" {
+		opt.OneOff, err = strconv.ParseBool(oneOffParam)
+		if err != nil {
+			http.Error(w, "cannot parse one-off", http.StatusBadRequest)
+			return
+		}
 	}
 
-	var interval *time.Duration
+	immediateParam := r.FormValue("immediate")
+	if immediateParam != "" {
+		opt.Immediate, err = strconv.ParseBool(immediateParam)
+		if err != nil {
+			http.Error(w, "cannot parse immediate", http.StatusBadRequest)
+			return
+		}
+	}
+
 	intervalParam := r.FormValue("interval")
 	if intervalParam != "" {
 		i64, err := strconv.ParseUint(intervalParam, 10, 32)
@@ -104,22 +100,19 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 			http.Error(w, "cannot parse interval", http.StatusBadRequest)
 			return
 		}
-		d := time.Duration(uint32(i64)) * time.Second
-		interval = &d
+		opt.Interval = time.Duration(uint32(i64)) * time.Second
 	}
 
-	var firstRun *time.Time
 	firstRunParam := r.FormValue("first-run")
 	if firstRunParam != "" {
-		t, err := time.Parse(time.RFC3339, firstRunParam)
+		opt.FirstRun, err = time.Parse(time.RFC3339, firstRunParam)
 		if err != nil {
 			http.Error(w, "cannot parse first-run", http.StatusBadRequest)
 			return
 		}
-		firstRun = &t
 	}
 
-	job, err := d.Jobs.Schedule(path, body, oneOff, immediate, firstRun, interval)
+	job, err := d.Jobs.Schedule(path, body, opt)
 	if err == errInvalidArgs {
 		http.Error(w, "invalid params", http.StatusBadRequest)
 		return

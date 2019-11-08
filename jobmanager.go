@@ -10,6 +10,13 @@ type JobManager struct {
 	scheduler *scheduler
 }
 
+type ScheduleOptions struct {
+	OneOff    bool
+	Immediate bool
+	FirstRun  time.Time
+	Interval  time.Duration
+}
+
 var errInvalidArgs = errors.New("invalid arguments")
 
 func newJobManager(t *table, s *scheduler) *JobManager {
@@ -26,42 +33,44 @@ func (m *JobManager) Get(path, body string) (*Job, error) {
 
 // Schedule inserts a new job to the table or replaces existing one.
 // Returns the created or replaced job.
-func (m *JobManager) Schedule(path, body string, oneOff, immediate bool, firstRun *time.Time, interval *time.Duration) (*Job, error) {
+func (m *JobManager) Schedule(path, body string, opt ScheduleOptions) (*Job, error) {
 	job := &Job{JobKey: JobKey{
 		Path: path,
 		Body: body,
 	}}
 
 	switch {
-	case oneOff && immediate:
-		if firstRun != nil || interval != nil {
+	case opt.OneOff && opt.Immediate: // one-off and immediate
+		// both first-run and interval params must be zero
+		if !opt.FirstRun.IsZero() || opt.Interval != 0 {
 			return nil, errInvalidArgs
 		}
 		job.NextRun = time.Now().UTC()
-	case oneOff && !immediate:
-		switch {
-		case (firstRun != nil && interval != nil) || (firstRun == nil && interval == nil):
-			return nil, errInvalidArgs
-		case firstRun != nil:
-			job.NextRun = *firstRun
-		case interval != nil:
-			job.NextRun = time.Now().UTC().Add(*interval)
-		}
-	case !oneOff && immediate: // periodic and immediate
-		if interval == nil || firstRun != nil {
+	case opt.OneOff && !opt.Immediate: // one-off but later
+		// only one of from first-run and interval params must be set
+		if (!opt.FirstRun.IsZero() && opt.Interval != 0) || (opt.FirstRun.IsZero() && opt.Interval == 0) {
 			return nil, errInvalidArgs
 		}
-		job.Interval = *interval
+		if opt.Interval != 0 {
+			job.NextRun = time.Now().UTC().Add(opt.Interval)
+		} else {
+			job.NextRun = opt.FirstRun
+		}
+	case !opt.OneOff && opt.Immediate: // periodic and immediate
+		if opt.Interval == 0 || !opt.FirstRun.IsZero() {
+			return nil, errInvalidArgs
+		}
+		job.Interval = opt.Interval
 		job.NextRun = time.Now().UTC()
 	default: // periodic
-		if interval == nil {
+		if opt.Interval == 0 {
 			return nil, errInvalidArgs
 		}
-		job.Interval = *interval
-		if firstRun != nil {
-			job.NextRun = *firstRun
+		job.Interval = opt.Interval
+		if !opt.FirstRun.IsZero() {
+			job.NextRun = opt.FirstRun
 		} else {
-			job.NextRun = time.Now().UTC().Add(*interval)
+			job.NextRun = time.Now().UTC().Add(opt.Interval)
 		}
 	}
 

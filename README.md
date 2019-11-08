@@ -42,12 +42,12 @@ PUT always returns 201. If there is an existing job with path and body, it will 
 
 There are 4 options that you can pass to `Schedule` but not every combination is valid:
 
-| Param | Description | Type | Example |
-| ----- | ----------- | ---- | ------- |
-| interval | Run job at intervals in seconds | Integer | 60 |
-| first-run | Do not run job until this time | RFC3339 Timestamp | 1985-04-12T23:20:50.52Z |
-| one-off | Run job only once | Boolean | true, false, yes, no, on, off, 1, 0 |
-| immediate | Run job immediately as it is scheduled | Boolean | true, false, yes, no, on, off, 1, 0 |
+| Param     | Description                            | Type              | Example                 |
+| -----     | -----------                            | ----              | -------                 |
+| interval  | Run job at intervals in seconds        | Integer           | 60                      |
+| first-run | Do not run job until this time         | RFC3339 Timestamp | 1985-04-12T23:20:50.52Z |
+| one-off   | Run job only once                      | Boolean           | true, false, 1, 0       |
+| immediate | Run job immediately as it is scheduled | Boolean           | true, false, 1, 0       |
 
 60 seconds later, Dalga makes a POST to your endpoint defined in config:
 
