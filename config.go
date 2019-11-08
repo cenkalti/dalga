@@ -8,12 +8,13 @@ import (
 
 var DefaultConfig = Config{
 	MySQL: mysqlConfig{
-		Host:     "127.0.0.1",
-		Port:     3306,
-		DB:       "test",
-		Table:    "dalga",
-		User:     "root",
-		Password: "",
+		Host:         "127.0.0.1",
+		Port:         3306,
+		DB:           "test",
+		Table:        "dalga",
+		User:         "root",
+		Password:     "",
+		MaxOpenConns: 50,
 	},
 	Listen: listenConfig{
 		Host: "127.0.0.1",
@@ -41,12 +42,13 @@ type jobsConfig struct {
 }
 
 type mysqlConfig struct {
-	Host     string
-	Port     int
-	DB       string
-	Table    string
-	User     string
-	Password string
+	Host         string
+	Port         int
+	DB           string
+	Table        string
+	User         string
+	Password     string
+	MaxOpenConns int
 }
 
 func (c mysqlConfig) DSN() string {

@@ -42,6 +42,7 @@ func New(config Config) (*Dalga, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(config.MySQL.MaxOpenConns)
 	t := &table{db: db, name: config.MySQL.Table}
 	s := newScheduler(t, config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, config.Jobs.RandomizationFactor)
 	m := newJobManager(t, s)
