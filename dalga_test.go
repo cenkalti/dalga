@@ -19,7 +19,7 @@ func init() {
 
 const (
 	testBody    = "testBody"
-	testTimeout = time.Second
+	testTimeout = 5 * time.Second
 )
 
 func dropTables(db *sql.DB, table string) error {
