@@ -1,4 +1,4 @@
-package dalga
+package table
 
 import (
 	"encoding/json"
@@ -7,17 +7,19 @@ import (
 )
 
 // Job is the record stored in jobs table.
-// Primary key for the table is JobKey.
+// Primary key for the table is Key.
 type Job struct {
-	JobKey
+	Key
 	// Interval is the duration between each POST to the endpoint.
 	// Interval is 0 for one-off jobs.
 	Interval time.Duration
 	// NextRun is the next run time of the job, stored in UTC.
 	NextRun time.Time
+	// Job is running if not nil.
+	InstanceID *uint32
 }
 
-type JobKey struct {
+type Key struct {
 	// Path is where the job is going to be POSTed when it's time came.
 	Path string
 	// Body of POST request.
@@ -41,14 +43,16 @@ func (j *Job) Remaining() time.Duration {
 
 func (j *Job) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Path     string        `json:"path"`
-		Body     string        `json:"body"`
-		Interval time.Duration `json:"interval"`
-		NextRun  string        `json:"next_run"`
+		Path       string        `json:"path"`
+		Body       string        `json:"body"`
+		Interval   time.Duration `json:"interval"`
+		NextRun    string        `json:"next_run"`
+		InstanceID *uint32       `json:"instance_id"`
 	}{
-		Path:     j.Path,
-		Body:     j.Body,
-		Interval: j.Interval / time.Second,
-		NextRun:  j.NextRun.Format(time.RFC3339),
+		Path:       j.Path,
+		Body:       j.Body,
+		Interval:   j.Interval / time.Second,
+		NextRun:    j.NextRun.Format(time.RFC3339),
+		InstanceID: j.InstanceID,
 	})
 }

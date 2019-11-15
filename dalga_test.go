@@ -2,6 +2,7 @@ package dalga
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"net/http"
 	"net/url"
@@ -21,6 +22,25 @@ const (
 	testTimeout = time.Second
 )
 
+func dropTables(db *sql.DB, table string) error {
+	dropSQL := "DROP TABLE " + table
+	_, err := db.Exec(dropSQL)
+	if err != nil {
+		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
+			return err
+		}
+	}
+	dropSQL = "DROP TABLE " + table + "_instances"
+	_, err = db.Exec(dropSQL)
+	if err != nil {
+		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
+			return err
+		}
+	}
+	println("dropped tables")
+	return nil
+}
+
 func TestSchedule(t *testing.T) {
 	config := DefaultConfig
 
@@ -36,18 +56,12 @@ func TestSchedule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cannot connect to mysql: %s", err.Error())
 	}
-
 	println("connected to db")
 
-	dropSQL := "DROP TABLE " + config.MySQL.Table
-	_, err = db.Exec(dropSQL)
+	err = dropTables(db, config.MySQL.Table)
 	if err != nil {
-		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	}
-
-	println("dropped table")
 
 	called := make(chan string)
 	endpoint := func(w http.ResponseWriter, r *http.Request) {
@@ -64,26 +78,21 @@ func TestSchedule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer d.Close()
 
 	err = d.CreateTable()
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	println("created table")
+	defer dropTables(db, config.MySQL.Table)
 
-	var gerr error
-	done := make(chan struct{})
-	go func() {
-		gerr = d.Run()
-		close(done)
+	ctx, cancel := context.WithCancel(context.Background())
+	go d.Run(ctx)
+	defer func() {
+		cancel()
+		<-d.NotifyDone()
 	}()
-
-	select {
-	case <-d.NotifyReady():
-	case <-done:
-		t.Fatal(gerr)
-	}
 
 	values := make(url.Values)
 	values.Set("one-off", "true")
@@ -120,11 +129,4 @@ func TestSchedule(t *testing.T) {
 	case <-time.After(testTimeout):
 		t.Fatal("timeout")
 	}
-
-	// Teardown
-	d.Shutdown()
-	<-done
-
-	// Cleanup
-	db.Exec(dropSQL)
 }

@@ -7,6 +7,9 @@ import (
 )
 
 var DefaultConfig = Config{
+	Jobs: jobsConfig{
+		RetryInterval: 60,
+	},
 	MySQL: mysqlConfig{
 		Host:         "127.0.0.1",
 		Port:         3306,
@@ -39,6 +42,7 @@ func (c *Config) LoadFromFile(filename string) error {
 
 type jobsConfig struct {
 	RandomizationFactor float64
+	RetryInterval       int
 }
 
 type mysqlConfig struct {
@@ -52,7 +56,7 @@ type mysqlConfig struct {
 }
 
 func (c mysqlConfig) DSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true", c.User, c.Password, c.Host, c.Port, c.DB)
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true", c.User, c.Password, c.Host, c.Port, c.DB)
 }
 
 type listenConfig struct {

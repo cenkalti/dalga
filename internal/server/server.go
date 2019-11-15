@@ -1,24 +1,87 @@
-package dalga
+package server
 
 import (
+	"context"
 	"encoding/json"
+	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/bmizerany/pat"
+	"github.com/cenkalti/dalga/internal/jobmanager"
+	"github.com/cenkalti/dalga/internal/table"
 )
 
-func (d *Dalga) serveHTTP() error {
+var debugging bool
+
+func EnableDebug() {
+	debugging = true
+}
+
+func debug(args ...interface{}) {
+	if debugging {
+		log.Println(args...)
+	}
+}
+
+type Server struct {
+	shutdownTimeout time.Duration
+	jobs            *jobmanager.JobManager
+	listener        net.Listener
+	httpServer      http.Server
+	done            chan struct{}
+}
+
+func New(j *jobmanager.JobManager, l net.Listener, shutdownTimeout time.Duration) *Server {
+	s := &Server{
+		shutdownTimeout: shutdownTimeout,
+		jobs:            j,
+		listener:        l,
+		done:            make(chan struct{}),
+	}
+	s.httpServer = s.createServer()
+	return s
+}
+
+func (s *Server) NotifyDone() chan struct{} {
+	return s.done
+}
+
+func (s *Server) Run(ctx context.Context) {
+	defer close(s.done)
+	shutdownDone := make(chan struct{})
+	go s.waitShutdown(ctx, shutdownDone)
+	_ = s.httpServer.Serve(s.listener)
+	<-shutdownDone
+}
+
+func (s *Server) waitShutdown(ctx context.Context, shutdownDone chan struct{}) {
+	defer close(shutdownDone)
+	select {
+	case <-s.done:
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
+		defer cancel()
+		_ = s.httpServer.Shutdown(shutdownCtx)
+	}
+}
+
+func (s *Server) createServer() http.Server {
 	const path = "/jobs/:jobPath/:jobBody"
 	m := pat.New()
-	m.Get(path, handler(d.handleGet))
-	m.Put(path, handler(d.handleSchedule))
-	m.Post(path, handler(d.handleTrigger))
-	m.Del(path, handler(d.handleCancel))
-	m.Get("/status", http.HandlerFunc(d.handleStatus))
-	return http.Serve(d.listener, m)
+	m.Get(path, handler(s.handleGet))
+	m.Put(path, handler(s.handleSchedule))
+	m.Del(path, handler(s.handleCancel))
+	m.Get("/status", http.HandlerFunc(s.handleStatus))
+	return http.Server{
+		Handler:      m,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  10 * time.Second,
+	}
 }
 
 func handler(f func(w http.ResponseWriter, r *http.Request, jobPath, body string)) http.HandlerFunc {
@@ -52,9 +115,9 @@ func handler(f func(w http.ResponseWriter, r *http.Request, jobPath, body string
 	})
 }
 
-func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body string) {
-	job, err := d.Jobs.Get(path, body)
-	if err == ErrNotExist {
+func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, path, body string) {
+	job, err := s.jobs.Get(r.Context(), path, body)
+	if err == table.ErrNotExist {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -71,8 +134,8 @@ func (d *Dalga) handleGet(w http.ResponseWriter, r *http.Request, path, body str
 	_, _ = w.Write(data)
 }
 
-func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, body string) {
-	var opt ScheduleOptions
+func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request, path, body string) {
+	var opt jobmanager.ScheduleOptions
 	var err error
 
 	oneOffParam := r.FormValue("one-off")
@@ -112,8 +175,8 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 		}
 	}
 
-	job, err := d.Jobs.Schedule(path, body, opt)
-	if err == errInvalidArgs {
+	job, err := s.jobs.Schedule(r.Context(), path, body, opt)
+	if err == jobmanager.ErrInvalidArgs {
 		http.Error(w, "invalid params", http.StatusBadRequest)
 		return
 	}
@@ -132,42 +195,23 @@ func (d *Dalga) handleSchedule(w http.ResponseWriter, r *http.Request, path, bod
 	_, _ = w.Write(data)
 }
 
-func (d *Dalga) handleTrigger(w http.ResponseWriter, r *http.Request, path, body string) {
-	job, err := d.Jobs.Trigger(path, body)
-	if err == ErrNotExist {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
+func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request, path, body string) {
+	err := s.jobs.Cancel(r.Context(), path, body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	data, err := json.Marshal(job)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(data)
-}
-
-func (d *Dalga) handleCancel(w http.ResponseWriter, r *http.Request, path, body string) {
-	err := d.Jobs.Cancel(path, body)
-	if err != nil && err != ErrNotExist {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (d *Dalga) handleStatus(w http.ResponseWriter, r *http.Request) {
-	count, err := d.Jobs.Total()
+func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
+	count, err := s.jobs.Total(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	m := map[string]interface{}{
-		"running_jobs": d.Jobs.Running(),
+		"running_jobs": s.jobs.Running(),
 		"total_jobs":   count,
 	}
 	data, err := json.Marshal(m)

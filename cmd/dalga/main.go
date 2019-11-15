@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -36,6 +37,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer d.Close()
 
 	if *createTable {
 		if err := d.CreateTable(); err != nil {
@@ -47,12 +49,12 @@ func main() {
 
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		<-signals
-		d.Shutdown()
+		cancel()
 	}()
 
-	if err := d.Run(); err != nil {
-		log.Fatal(err)
-	}
+	d.Run(ctx)
 }

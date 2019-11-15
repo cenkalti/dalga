@@ -1,130 +1,98 @@
 package dalga
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"flag"
 	"log"
 	"net"
-	"sync"
 	"time"
+
+	"github.com/cenkalti/dalga/internal/instance"
+	"github.com/cenkalti/dalga/internal/jobmanager"
+	"github.com/cenkalti/dalga/internal/scheduler"
+	"github.com/cenkalti/dalga/internal/server"
+	"github.com/cenkalti/dalga/internal/table"
 )
 
 const Version = "2.0.0"
 
 var debugging = flag.Bool("debug", false, "turn on debug messages")
 
-func debug(args ...interface{}) {
-	if *debugging {
-		log.Println(args...)
-	}
-}
-
 type Dalga struct {
 	config    Config
 	db        *sql.DB
-	table     *table
 	listener  net.Listener
-	Jobs      *JobManager
-	scheduler *scheduler
-	// will be closed when dalga is ready to accept requests
-	ready chan struct{}
-	// will be closed by Shutdown method
-	shutdown     chan struct{}
-	onceShutdown sync.Once
+	table     *table.Table
+	instance  *instance.Instance
+	Jobs      *jobmanager.JobManager
+	scheduler *scheduler.Scheduler
+	server    *server.Server
+	done      chan struct{}
 }
 
 func New(config Config) (*Dalga, error) {
 	if config.Jobs.RandomizationFactor < 0 || config.Jobs.RandomizationFactor > 1 {
 		return nil, errors.New("randomization factor must be between 0 and 1")
 	}
+
 	db, err := sql.Open("mysql", config.MySQL.DSN())
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(config.MySQL.MaxOpenConns)
-	t := &table{db: db, name: config.MySQL.Table}
-	s := newScheduler(t, config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, config.Jobs.RandomizationFactor)
-	m := newJobManager(t, s)
+
+	lis, err := net.Listen("tcp", config.Listen.Addr())
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	log.Println("listening", lis.Addr())
+
+	t := table.New(db, config.MySQL.Table)
+	i := instance.New(t)
+	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, time.Duration(config.Jobs.RetryInterval)*time.Second, config.Jobs.RandomizationFactor)
+	j := jobmanager.New(t, s)
+	srv := server.New(j, lis, 10*time.Second)
 	return &Dalga{
 		config:    config,
 		db:        db,
+		listener:  lis,
 		table:     t,
-		Jobs:      m,
+		instance:  i,
 		scheduler: s,
-		ready:     make(chan struct{}),
-		shutdown:  make(chan struct{}),
+		Jobs:      j,
+		server:    srv,
+		done:      make(chan struct{}),
 	}, nil
 }
 
+func (d *Dalga) Close() {
+	d.listener.Close()
+	d.db.Close()
+}
+
+func (d *Dalga) NotifyDone() chan struct{} {
+	return d.done
+}
+
 // Run Dalga. This function is blocking. Returns nil after Shutdown is called.
-func (d *Dalga) Run() error {
-	var err error
-	d.listener, err = net.Listen("tcp", d.config.Listen.Addr())
-	if err != nil {
-		return err
-	}
-	log.Println("listening", d.listener.Addr())
+func (d *Dalga) Run(ctx context.Context) {
+	defer close(d.done)
 
-	d.db, err = sql.Open("mysql", d.config.MySQL.DSN())
-	if err != nil {
-		return err
-	}
-	defer d.db.Close()
+	go d.server.Run(ctx)
+	go d.instance.Run(ctx)
+	go d.scheduler.Run(ctx)
 
-	if err = d.db.Ping(); err != nil {
-		return err
-	}
-	log.Print("connected to mysql")
+	<-ctx.Done()
 
-	if err = d.table.Prepare(); err != nil {
-		return err
-	}
-
-	log.Print("dalga is ready")
-	close(d.ready)
-
-	go d.scheduler.Run()
-	defer func() {
-		d.scheduler.Stop()
-		<-d.scheduler.NotifyDone()
-	}()
-
-	if err = d.serveHTTP(); err != nil {
-		select {
-		case _, ok := <-d.shutdown:
-			if !ok {
-				// shutdown in progress, do not return error
-				return nil
-			}
-		default:
-		}
-	}
-	return err
-}
-
-// Shutdown running Dalga gracefully.
-func (d *Dalga) Shutdown() {
-	d.onceShutdown.Do(func() {
-		close(d.shutdown)
-		if err := d.listener.Close(); err != nil {
-			log.Print(err)
-		}
-	})
-}
-
-// NotifyReady returns a channel that will be closed when Dalga is ready to accept HTTP requests.
-func (d *Dalga) NotifyReady() <-chan struct{} {
-	return d.ready
+	<-d.server.NotifyDone()
+	<-d.instance.NotifyDone()
+	<-d.scheduler.NotifyDone()
 }
 
 // CreateTable creates the table for storing jobs on database.
 func (d *Dalga) CreateTable() error {
-	db, err := sql.Open("mysql", d.config.MySQL.DSN())
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	t := &table{db: db, name: d.config.MySQL.Table}
-	return t.Create()
+	return d.table.Create(context.Background())
 }
