@@ -20,6 +20,7 @@ func init() {
 const (
 	testBody    = "testBody"
 	testTimeout = 5 * time.Second
+	testAddr    = "127.0.0.1:5000"
 )
 
 func dropTables(db *sql.DB, table string) error {
@@ -72,7 +73,7 @@ func TestSchedule(t *testing.T) {
 	}
 
 	http.HandleFunc("/", endpoint)
-	go http.ListenAndServe("127.0.0.1:5000", nil)
+	go http.ListenAndServe(testAddr, nil)
 
 	d, err := New(config)
 	if err != nil {
