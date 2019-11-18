@@ -14,3 +14,10 @@ before_script:
   - mysql --version
   - mysql -e 'create database test'
 script: go test -race -v
+deploy:
+- provider: script
+  skip_cleanup: true
+  script: curl -sL https://git.io/goreleaser | bash
+  on:
+    tags: true
+    condition: $TRAVIS_OS_NAME = linux

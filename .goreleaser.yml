@@ -1,0 +1,26 @@
+env:
+  - GO111MODULE=on
+before:
+  hooks:
+    - go mod download
+builds:
+  - env:
+    - CGO_ENABLED=0
+    ldflags:
+    - -s -w
+    goos:
+    - linux
+    goarch:
+    - amd64
+    main: ./cmd/dalga/main.go
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}"
+checksum:
+  name_template: 'checksums.txt'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
