@@ -55,29 +55,29 @@ func (m *JobManager) Schedule(ctx context.Context, path, body string, opt Schedu
 		Body: body,
 	}}
 
+	var delay time.Duration
+	var firstRun time.Time
 	switch {
 	case opt.OneOff && opt.Immediate: // one-off and immediate
 		// both first-run and interval params must be zero
 		if !opt.FirstRun.IsZero() || opt.Interval != 0 {
 			return nil, ErrInvalidArgs
 		}
-		job.NextRun = time.Now().UTC()
 	case opt.OneOff && !opt.Immediate: // one-off but later
 		// only one of from first-run and interval params must be set
 		if (!opt.FirstRun.IsZero() && opt.Interval != 0) || (opt.FirstRun.IsZero() && opt.Interval == 0) {
 			return nil, ErrInvalidArgs
 		}
 		if opt.Interval != 0 {
-			job.NextRun = time.Now().UTC().Add(opt.Interval)
+			delay = opt.Interval
 		} else {
-			job.NextRun = opt.FirstRun
+			firstRun = opt.FirstRun
 		}
 	case !opt.OneOff && opt.Immediate: // periodic and immediate
 		if opt.Interval == 0 || !opt.FirstRun.IsZero() {
 			return nil, ErrInvalidArgs
 		}
 		job.Interval = opt.Interval
-		job.NextRun = time.Now().UTC()
 	default: // periodic
 		if opt.Interval == 0 {
 			return nil, ErrInvalidArgs
@@ -86,11 +86,11 @@ func (m *JobManager) Schedule(ctx context.Context, path, body string, opt Schedu
 		if !opt.FirstRun.IsZero() {
 			job.NextRun = opt.FirstRun
 		} else {
-			job.NextRun = time.Now().UTC().Add(opt.Interval)
+			delay = opt.Interval
 		}
 	}
 	debug("job is scheduled:", job)
-	return job, m.table.AddJob(ctx, job)
+	return job, m.table.AddJob(ctx, job.Key, job.Interval, delay, firstRun)
 }
 
 // Cancel deletes the job with path and body.

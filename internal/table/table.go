@@ -74,11 +74,19 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 }
 
 // Insert the job to to scheduler table.
-func (t *Table) AddJob(ctx context.Context, j *Job) error {
-	s := "REPLACE INTO " + t.name + // nolint: gosec
-		"(path, body, `interval`, next_run) " +
-		"VALUES (?, ?, ?, ?)"
-	_, err := t.db.ExecContext(ctx, s, j.Path, j.Body, j.Interval.Seconds(), j.NextRun)
+func (t *Table) AddJob(ctx context.Context, key Key, interval, delay time.Duration, firstRun time.Time) error {
+	var err error
+	if firstRun.IsZero() {
+		s := "REPLACE INTO " + t.name + // nolint: gosec
+			"(path, body, `interval`, next_run) " +
+			"VALUES (?, ?, ?, UTC_TIMESTAMP() + INTERVAL ? SECOND)"
+		_, err = t.db.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, delay/time.Second)
+	} else {
+		s := "REPLACE INTO " + t.name + // nolint: gosec
+			"(path, body, `interval`, next_run) " +
+			"VALUES (?, ?, ?, ?)"
+		_, err = t.db.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, firstRun)
+	}
 	return err
 }
 
@@ -98,11 +106,11 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	defer tx.Rollback() // nolint: errcheck
 	s := "SELECT path, body, `interval`, next_run " +
 		"FROM " + t.name + " " +
-		"WHERE next_run < ? " +
+		"WHERE next_run < UTC_TIMESTAMP() " +
 		"AND instance_id IS NULL " +
 		"ORDER BY next_run ASC LIMIT 1 " +
 		"FOR UPDATE SKIP LOCKED"
-	row := tx.QueryRowContext(ctx, s, time.Now().UTC())
+	row := tx.QueryRowContext(ctx, s)
 	var j Job
 	var interval uint32
 	err = row.Scan(&j.Path, &j.Body, &interval, &j.NextRun)
@@ -119,11 +127,11 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 }
 
 // UpdateNextRun sets next_run to now+interval.
-func (t *Table) UpdateNextRun(ctx context.Context, key Key, nextRun time.Time) error {
+func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay time.Duration) error {
 	s := "UPDATE " + t.name + " " + // nolint: gosec
-		"SET next_run=?, instance_id=NULL " +
+		"SET next_run=UTC_TIMESTAMP() + INTERVAL ? SECOND, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
-	_, err := t.db.ExecContext(ctx, s, nextRun, key.Path, key.Body)
+	_, err := t.db.ExecContext(ctx, s, delay/time.Second, key.Path, key.Body)
 	return err
 }
 

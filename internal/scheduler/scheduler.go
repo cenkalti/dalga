@@ -112,7 +112,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 	code, err := s.postJob(ctx, j)
 	if err != nil {
 		log.Printf("error in job [%q, %q]: %s\n", j.Path, j.Body, err)
-		return s.table.UpdateNextRun(ctx, j.Key, time.Now().UTC().Add(s.retryInterval))
+		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval)
 	}
 	if j.OneOff() {
 		debug("deleting one-off job")
@@ -127,7 +127,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 		// Add some randomization to periodic tasks.
 		add = randomize(add, s.randomizationFactor)
 	}
-	return s.table.UpdateNextRun(ctx, j.Key, time.Now().UTC().Add(add))
+	return s.table.UpdateNextRun(ctx, j.Key, add)
 }
 
 func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err error) {

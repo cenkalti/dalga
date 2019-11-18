@@ -36,11 +36,6 @@ func (j *Job) OneOff() bool {
 	return j.Interval == 0
 }
 
-// Remaining returns the remaining time to the job's next run time.
-func (j *Job) Remaining() time.Duration {
-	return j.NextRun.Sub(time.Now().UTC())
-}
-
 func (j *Job) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Path       string        `json:"path"`
