@@ -67,6 +67,9 @@ func (s *Scheduler) Run(ctx context.Context) {
 		debug("---")
 
 		job, err := s.table.Front(ctx, s.instanceID)
+		if err == context.Canceled {
+			return
+		}
 		if err == sql.ErrNoRows {
 			debug("no scheduled jobs in the table")
 			select {
