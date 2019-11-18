@@ -28,7 +28,12 @@ type Key struct {
 
 // String returns the job in human-readable form.
 func (j *Job) String() string {
-	return fmt.Sprintf("Job{%q, %q, %s, %s}", j.Body, j.Path, j.Interval, j.NextRun.String()[:23])
+	var id uint32
+	if j.InstanceID != nil {
+		id = *j.InstanceID
+	}
+	format := "2006-01-02T15:04:05"
+	return fmt.Sprintf("Job<%q, %q, %d, %s, %d>", j.Path, j.Body, j.Interval, j.NextRun.Format(format), id)
 }
 
 // OneOff returns true for one-off jobs. One-off jobs are stored with 0 interval on jobs table.

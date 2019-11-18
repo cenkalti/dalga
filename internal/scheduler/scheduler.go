@@ -97,7 +97,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 		go func(job *table.Job) {
 			atomic.AddInt32(&s.runningJobs, 1)
 			if err := s.execute(ctx, job); err != nil {
-				log.Print("error on job execution:", err)
+				log.Printf("error on execution of %s: %s", job, err)
 			}
 			atomic.AddInt32(&s.runningJobs, -1)
 		}(job)
@@ -114,7 +114,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 	debug("execute", *j)
 	code, err := s.postJob(ctx, j)
 	if err != nil {
-		log.Printf("error while doing http post, job [%q, %q]: %s\n", j.Path, j.Body, err)
+		log.Printf("error while doing http post for %s: %s", j, err)
 		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval)
 	}
 	if j.OneOff() {
