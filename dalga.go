@@ -17,6 +17,7 @@ import (
 
 const Version = "2.0.0"
 
+// Dalga is a job scheduler.
 type Dalga struct {
 	config    Config
 	db        *sql.DB
@@ -29,6 +30,7 @@ type Dalga struct {
 	done      chan struct{}
 }
 
+// New returns a new Dalga instance. Close must be called when disposing the object.
 func New(config Config) (*Dalga, error) {
 	if config.Jobs.RandomizationFactor < 0 || config.Jobs.RandomizationFactor > 1 {
 		return nil, errors.New("randomization factor must be between 0 and 1")
@@ -65,16 +67,18 @@ func New(config Config) (*Dalga, error) {
 	}, nil
 }
 
+// Close database connections and HTTP listener.
 func (d *Dalga) Close() {
 	d.listener.Close()
 	d.db.Close()
 }
 
+// NotifyDone returns a channel that will be closed when Run method returns.
 func (d *Dalga) NotifyDone() chan struct{} {
 	return d.done
 }
 
-// Run Dalga. This function is blocking. Returns nil after Shutdown is called.
+// Run Dalga. This function is blocking.
 func (d *Dalga) Run(ctx context.Context) {
 	defer close(d.done)
 
