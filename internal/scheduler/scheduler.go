@@ -81,7 +81,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 			log.Fatal(myErr)
 		}
 		if err != nil {
-			log.Print(err)
+			log.Print("error while getting next job:", err)
 			select {
 			case <-time.After(time.Second):
 			case <-ctx.Done():
@@ -94,7 +94,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 		go func(job *table.Job) {
 			atomic.AddInt32(&s.runningJobs, 1)
 			if err := s.execute(ctx, job); err != nil {
-				log.Print(err)
+				log.Print("error on job execution:", err)
 			}
 			atomic.AddInt32(&s.runningJobs, -1)
 		}(job)
@@ -111,7 +111,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 	debug("execute", *j)
 	code, err := s.postJob(ctx, j)
 	if err != nil {
-		log.Printf("error in job [%q, %q]: %s\n", j.Path, j.Body, err)
+		log.Printf("error while doing http post, job [%q, %q]: %s\n", j.Path, j.Body, err)
 		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval)
 	}
 	if j.OneOff() {

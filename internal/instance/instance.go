@@ -46,7 +46,7 @@ func (i *Instance) Run(ctx context.Context) {
 			defer cancel()
 			err := i.table.DeleteInstance(shutdownCtx, i.id)
 			if err != nil {
-				log.Print(err)
+				log.Print("cannot delete instance from db:", err)
 			}
 			return
 		}
@@ -56,6 +56,6 @@ func (i *Instance) Run(ctx context.Context) {
 func (i *Instance) updateInstance(ctx context.Context) {
 	err := i.table.UpdateInstance(ctx, i.id)
 	if err != nil {
-		log.Print(err)
+		log.Print("cannot update instance at db:", err)
 	}
 }
