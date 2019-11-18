@@ -77,13 +77,3 @@ Cancel previously scheduled job:
     $ curl -i -X DELETE 'http://127.0.0.1:34006/jobs/check_feed/1234'
     HTTP/1.1 204 No Content
     Date: Tue, 11 Nov 2014 22:13:35 GMT
-
-You may trigger a job manually by sending a POST request:
-
-    $ curl -i -X POST 'http://127.0.0.1:34006/jobs/check_feed/1234?interval=60'
-    HTTP/1.1 200 OK
-    Content-Type: application/json
-    Date: Fri, 14 Nov 2014 09:09:01 GMT
-    Content-Length: 83
-
-    {"path":"check_feed","body":"1234","interval":0,"next_run":"2014-11-14T09:09:01Z"}
