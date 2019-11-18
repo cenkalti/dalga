@@ -50,13 +50,14 @@ func (m *JobManager) Get(ctx context.Context, path, body string) (*table.Job, er
 // Schedule inserts a new job to the table or replaces existing one.
 // Returns the created or replaced job.
 func (m *JobManager) Schedule(ctx context.Context, path, body string, opt ScheduleOptions) (*table.Job, error) {
-	job := &table.Job{Key: table.Key{
+	key := table.Key{
 		Path: path,
 		Body: body,
-	}}
+	}
 
+	var interval time.Duration
 	var delay time.Duration
-	var firstRun time.Time
+	var nextRun time.Time
 	switch {
 	case opt.OneOff && opt.Immediate: // one-off and immediate
 		// both first-run and interval params must be zero
@@ -71,26 +72,26 @@ func (m *JobManager) Schedule(ctx context.Context, path, body string, opt Schedu
 		if opt.Interval != 0 {
 			delay = opt.Interval
 		} else {
-			firstRun = opt.FirstRun
+			nextRun = opt.FirstRun
 		}
 	case !opt.OneOff && opt.Immediate: // periodic and immediate
 		if opt.Interval == 0 || !opt.FirstRun.IsZero() {
 			return nil, ErrInvalidArgs
 		}
-		job.Interval = opt.Interval
+		interval = opt.Interval
 	default: // periodic
 		if opt.Interval == 0 {
 			return nil, ErrInvalidArgs
 		}
-		job.Interval = opt.Interval
+		interval = opt.Interval
 		if !opt.FirstRun.IsZero() {
-			job.NextRun = opt.FirstRun
+			nextRun = opt.FirstRun
 		} else {
 			delay = opt.Interval
 		}
 	}
-	debug("job is scheduled:", job)
-	return job, m.table.AddJob(ctx, job.Key, job.Interval, delay, firstRun)
+	debug("job is scheduled:", key)
+	return m.table.AddJob(ctx, key, interval, delay, nextRun)
 }
 
 // Cancel deletes the job with path and body.

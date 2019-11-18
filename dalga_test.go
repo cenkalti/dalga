@@ -130,4 +130,5 @@ func TestSchedule(t *testing.T) {
 	case <-time.After(testTimeout):
 		t.Fatal("timeout")
 	}
+	time.Sleep(time.Second)
 }

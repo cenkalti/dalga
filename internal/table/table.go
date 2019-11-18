@@ -74,20 +74,38 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 }
 
 // Insert the job to to scheduler table.
-func (t *Table) AddJob(ctx context.Context, key Key, interval, delay time.Duration, firstRun time.Time) error {
-	var err error
-	if firstRun.IsZero() {
+func (t *Table) AddJob(ctx context.Context, key Key, interval, delay time.Duration, nextRun time.Time) (*Job, error) {
+	tx, err := t.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback() // nolint: errcheck
+	if nextRun.IsZero() {
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
 			"VALUES (?, ?, ?, UTC_TIMESTAMP() + INTERVAL ? SECOND)"
-		_, err = t.db.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, delay/time.Second)
+		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, delay/time.Second)
 	} else {
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
 			"VALUES (?, ?, ?, ?)"
-		_, err = t.db.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, firstRun)
+		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, nextRun)
 	}
-	return err
+	if err != nil {
+		return nil, err
+	}
+	s := "SELECT next_run FROM " + t.name + " WHERE path=? AND body=?" // nolint: gosec
+	row := tx.QueryRowContext(ctx, s, key.Path, key.Body)
+	err = row.Scan(&nextRun)
+	if err != nil {
+		return nil, err
+	}
+	job := &Job{
+		Key:      key,
+		Interval: interval,
+		NextRun:  nextRun,
+	}
+	return job, tx.Commit()
 }
 
 // Delete the job from scheduler table.
