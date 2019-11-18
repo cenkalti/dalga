@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,20 +11,9 @@ import (
 
 	"github.com/bmizerany/pat"
 	"github.com/cenkalti/dalga/internal/jobmanager"
+	"github.com/cenkalti/dalga/internal/log"
 	"github.com/cenkalti/dalga/internal/table"
 )
-
-var debugging bool
-
-func EnableDebug() {
-	debugging = true
-}
-
-func debug(args ...interface{}) {
-	if debugging {
-		log.Println(args...)
-	}
-}
 
 type Server struct {
 	shutdownTimeout time.Duration
@@ -86,7 +74,7 @@ func (s *Server) createServer() http.Server {
 
 func handler(f func(w http.ResponseWriter, r *http.Request, jobPath, body string)) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		debug("http:", r.Method, r.RequestURI)
+		log.Debugln("http:", r.Method, r.RequestURI)
 		var err error
 
 		jobPath := r.URL.Query().Get(":jobPath")

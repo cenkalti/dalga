@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/dalga/internal/log"
 	"github.com/go-sql-driver/mysql"
 )
 
 func init() {
-	*debugging = true
+	log.EnableDebug()
 }
 
 const (

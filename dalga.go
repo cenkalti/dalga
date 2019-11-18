@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"flag"
 	"log"
 	"net"
 	"time"
@@ -17,8 +16,6 @@ import (
 )
 
 const Version = "2.0.0"
-
-var debugging = flag.Bool("debug", false, "turn on debug messages")
 
 type Dalga struct {
 	config    Config

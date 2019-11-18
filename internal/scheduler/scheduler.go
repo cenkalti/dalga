@@ -4,28 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/dalga/internal/log"
 	"github.com/cenkalti/dalga/internal/table"
 	"github.com/go-sql-driver/mysql"
 )
-
-var debugging bool
-
-func EnableDebug() {
-	debugging = true
-}
-
-func debug(args ...interface{}) {
-	if debugging {
-		log.Println(args...)
-	}
-}
 
 type Scheduler struct {
 	table               *table.Table
@@ -64,14 +52,14 @@ func (s *Scheduler) Run(ctx context.Context) {
 	defer close(s.done)
 
 	for {
-		debug("---")
+		log.Debugln("---")
 
 		job, err := s.table.Front(ctx, s.instanceID)
 		if err == context.Canceled {
 			return
 		}
 		if err == sql.ErrNoRows {
-			debug("no scheduled jobs in the table")
+			log.Debugln("no scheduled jobs in the table")
 			select {
 			case <-time.After(time.Second):
 			case <-ctx.Done():
@@ -84,7 +72,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 			log.Fatal(myErr)
 		}
 		if err != nil {
-			log.Print("error while getting next job:", err)
+			log.Println("error while getting next job:", err)
 			select {
 			case <-time.After(time.Second):
 			case <-ctx.Done():
@@ -93,11 +81,10 @@ func (s *Scheduler) Run(ctx context.Context) {
 			continue
 		}
 
-		debug("next job:", job, "next_run:", job.NextRun)
 		go func(job *table.Job) {
 			atomic.AddInt32(&s.runningJobs, 1)
 			if err := s.execute(ctx, job); err != nil {
-				log.Printf("error on execution of %s: %s", job, err)
+				log.Printf("error on execution of %s: %s", job.String(), err)
 			}
 			atomic.AddInt32(&s.runningJobs, -1)
 		}(job)
@@ -111,18 +98,18 @@ func randomize(d time.Duration, f float64) time.Duration {
 
 // execute makes a POST request to the endpoint and updates the Job's next run time.
 func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
-	debug("execute", *j)
+	log.Debugln("executing:", j.String())
 	code, err := s.postJob(ctx, j)
 	if err != nil {
-		log.Printf("error while doing http post for %s: %s", j, err)
+		log.Printf("error while doing http post for %s: %s", j.String(), err)
 		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval)
 	}
 	if j.OneOff() {
-		debug("deleting one-off job")
+		log.Debugln("deleting one-off job")
 		return s.table.DeleteJob(ctx, j.Key)
 	}
 	if code == 204 {
-		debug("deleting not found job")
+		log.Debugln("deleting not found job")
 		return s.table.DeleteJob(ctx, j.Key)
 	}
 	add := j.Interval
@@ -135,7 +122,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 
 func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err error) {
 	url := s.baseURL + j.Path
-	debug("POSTing to ", url)
+	log.Debugln("doing http post to ", url)
 	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(j.Body))
 	if err != nil {
 		return

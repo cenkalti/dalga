@@ -4,18 +4,19 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/cenkalti/dalga"
+	"github.com/cenkalti/dalga/internal/log"
 )
 
 var (
 	config      = flag.String("config", "", "config file")
 	version     = flag.Bool("version", false, "print version")
 	createTable = flag.Bool("create-table", false, "create table for storing jobs")
+	debug       = flag.Bool("debug", false, "turn on debug messages")
 )
 
 func main() {
@@ -24,6 +25,10 @@ func main() {
 	if *version {
 		fmt.Println(dalga.Version)
 		return
+	}
+
+	if *debug {
+		log.EnableDebug()
 	}
 
 	c := dalga.DefaultConfig

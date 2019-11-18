@@ -3,24 +3,12 @@ package jobmanager
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
+	"github.com/cenkalti/dalga/internal/log"
 	"github.com/cenkalti/dalga/internal/scheduler"
 	"github.com/cenkalti/dalga/internal/table"
 )
-
-var debugging bool
-
-func EnableDebug() {
-	debugging = true
-}
-
-func debug(args ...interface{}) {
-	if debugging {
-		log.Println(args...)
-	}
-}
 
 type JobManager struct {
 	table     *table.Table
@@ -90,13 +78,13 @@ func (m *JobManager) Schedule(ctx context.Context, path, body string, opt Schedu
 			delay = opt.Interval
 		}
 	}
-	debug("job is scheduled:", key)
+	log.Debugln("job is scheduled:", key.Path, key.Body)
 	return m.table.AddJob(ctx, key, interval, delay, nextRun)
 }
 
 // Cancel deletes the job with path and body.
 func (m *JobManager) Cancel(ctx context.Context, path, body string) error {
-	debug("job is cancelled")
+	log.Debugln("job is cancelled:", path, body)
 	return m.table.DeleteJob(ctx, table.Key{Path: path, Body: body})
 }
 
