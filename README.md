@@ -9,6 +9,7 @@ Dalga is a job scheduler.
 - Stores jobs in a MySQL table.
 - Has an HTTP interface for scheduling and cancelling jobs.
 - Makes a POST request to the endpoint defined in config on the job's execution time.
+- Multiple instances can be run for scaling out.
 
 Install
 -------
