@@ -98,7 +98,12 @@ func (m *JobManager) Total(ctx context.Context) (int64, error) {
 	return m.table.Count(ctx)
 }
 
-// Pendign returns the count of pending jobs in jobs table.
+// Pending returns the count of pending jobs in jobs table.
 func (m *JobManager) Pending(ctx context.Context) (int64, error) {
 	return m.table.Pending(ctx)
+}
+
+// Running returns the count of total running jobs in jobs table.
+func (m *JobManager) TotalRunning(ctx context.Context) (int64, error) {
+	return m.table.Running(ctx)
 }

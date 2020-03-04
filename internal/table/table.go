@@ -170,8 +170,16 @@ func (t *Table) Count(ctx context.Context) (int64, error) {
 
 // Pending returns the count of pending jobs in the table.
 func (t *Table) Pending(ctx context.Context) (int64, error) {
-	s := "SELECT COUNT(*) FROM " + t.name + // nolint: gosec
+	s := "SELECT COUNT(*) FROM " + t.name + " " + // nolint: gosec
 		"WHERE next_run < UTC_TIMESTAMP()"
+	var count int64
+	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
+}
+
+// Running returns the count of total running jobs in the table.
+func (t *Table) Running(ctx context.Context) (int64, error) {
+	s := "SELECT COUNT(*) FROM " + t.name + " " + // nolint: gosec
+		"WHERE instance_id IS NOT NULL"
 	var count int64
 	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
 }
