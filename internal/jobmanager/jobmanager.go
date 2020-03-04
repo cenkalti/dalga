@@ -107,3 +107,8 @@ func (m *JobManager) Pending(ctx context.Context) (int64, error) {
 func (m *JobManager) TotalRunning(ctx context.Context) (int64, error) {
 	return m.table.Running(ctx)
 }
+
+// Instances returns the count of running Dalga instances.
+func (m *JobManager) Instances(ctx context.Context) (int64, error) {
+	return m.table.Instances(ctx)
+}

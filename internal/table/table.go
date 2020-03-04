@@ -184,6 +184,13 @@ func (t *Table) Running(ctx context.Context) (int64, error) {
 	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
 }
 
+// Instances returns the count of running Dalga instances.
+func (t *Table) Instances(ctx context.Context) (int64, error) {
+	s := "SELECT COUNT(*) FROM " + t.name + "_instances " // nolint: gosec
+	var count int64
+	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
+}
+
 func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
 	s := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE updated_at=UTC_TIMESTAMP()" // nolint: gosec
 	s += ";DELETE FROM " + t.name + "_instances WHERE updated_at < UTC_TIMESTAMP() - INTERVAL 1 MINUTE"                                                                                // nolint: gosec
