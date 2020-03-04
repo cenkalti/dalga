@@ -18,15 +18,17 @@ import (
 type Server struct {
 	shutdownTimeout time.Duration
 	jobs            *jobmanager.JobManager
+	instanceID      uint32
 	listener        net.Listener
 	httpServer      http.Server
 	done            chan struct{}
 }
 
-func New(j *jobmanager.JobManager, l net.Listener, shutdownTimeout time.Duration) *Server {
+func New(j *jobmanager.JobManager, instanceID uint32, l net.Listener, shutdownTimeout time.Duration) *Server {
 	s := &Server{
 		shutdownTimeout: shutdownTimeout,
 		jobs:            j,
+		instanceID:      instanceID,
 		listener:        l,
 		done:            make(chan struct{}),
 	}
@@ -193,14 +195,21 @@ func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request, path, body
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	count, err := s.jobs.Total(r.Context())
+	total, err := s.jobs.Total(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	pending, err := s.jobs.Pending(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	m := map[string]interface{}{
-		"running_jobs": s.jobs.Running(),
-		"total_jobs":   count,
+		"instance_id":           s.instanceID,
+		"instance_running_jobs": s.jobs.Running(),
+		"total_jobs":            total,
+		"pending_jobs":          pending,
 	}
 	data, err := json.Marshal(m)
 	if err != nil {
