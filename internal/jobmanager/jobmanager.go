@@ -112,3 +112,7 @@ func (m *JobManager) TotalRunning(ctx context.Context) (int64, error) {
 func (m *JobManager) Instances(ctx context.Context) (int64, error) {
 	return m.table.Instances(ctx)
 }
+
+func (m *JobManager) Lag(ctx context.Context) (int64, error) {
+	return m.table.Lag(ctx)
+}

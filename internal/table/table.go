@@ -176,6 +176,18 @@ func (t *Table) Pending(ctx context.Context) (int64, error) {
 	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
 }
 
+func (t *Table) Lag(ctx context.Context) (int64, error) {
+	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, UTC_TIMESTAMP()) FROM " + t.name + " " + // nolint: gosec
+		"WHERE next_run < UTC_TIMESTAMP() AND instance_id is NULL " +
+		"ORDER BY next_run ASC LIMIT 1"
+	var lag int64
+	err := t.db.QueryRowContext(ctx, s).Scan(&lag)
+	if err == sql.ErrNoRows {
+		err = nil
+	}
+	return lag, err
+}
+
 // Running returns the count of total running jobs in the table.
 func (t *Table) Running(ctx context.Context) (int64, error) {
 	s := "SELECT COUNT(*) FROM " + t.name + " " + // nolint: gosec
