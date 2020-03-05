@@ -18,16 +18,18 @@ import (
 type Server struct {
 	shutdownTimeout time.Duration
 	jobs            *jobmanager.JobManager
+	table           *table.Table
 	instanceID      uint32
 	listener        net.Listener
 	httpServer      http.Server
 	done            chan struct{}
 }
 
-func New(j *jobmanager.JobManager, instanceID uint32, l net.Listener, shutdownTimeout time.Duration) *Server {
+func New(j *jobmanager.JobManager, t *table.Table, instanceID uint32, l net.Listener, shutdownTimeout time.Duration) *Server {
 	s := &Server{
 		shutdownTimeout: shutdownTimeout,
 		jobs:            j,
+		table:           t,
 		instanceID:      instanceID,
 		listener:        l,
 		done:            make(chan struct{}),
@@ -195,27 +197,27 @@ func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request, path, body
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	total, err := s.jobs.Total(r.Context())
+	total, err := s.table.Count(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	pending, err := s.jobs.Pending(r.Context())
+	pending, err := s.table.Pending(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	running, err := s.jobs.TotalRunning(r.Context())
+	running, err := s.table.Running(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	instances, err := s.jobs.Instances(r.Context())
+	instances, err := s.table.Instances(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	lag, err := s.jobs.Lag(r.Context())
+	lag, err := s.table.Lag(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

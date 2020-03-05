@@ -53,7 +53,7 @@ func New(config Config) (*Dalga, error) {
 	i := instance.New(t)
 	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, time.Duration(config.Jobs.RetryInterval)*time.Second, config.Jobs.RandomizationFactor)
 	j := jobmanager.New(t, s)
-	srv := server.New(j, i.ID(), lis, 10*time.Second)
+	srv := server.New(j, t, i.ID(), lis, 10*time.Second)
 	return &Dalga{
 		config:    config,
 		db:        db,

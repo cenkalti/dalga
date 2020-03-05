@@ -176,6 +176,7 @@ func (t *Table) Pending(ctx context.Context) (int64, error) {
 	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
 }
 
+// Lag returns the number of seconds passed from the execution time of the oldest pending job.
 func (t *Table) Lag(ctx context.Context) (int64, error) {
 	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, UTC_TIMESTAMP()) FROM " + t.name + " " + // nolint: gosec
 		"WHERE next_run < UTC_TIMESTAMP() AND instance_id is NULL " +

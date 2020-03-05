@@ -92,27 +92,3 @@ func (m *JobManager) Cancel(ctx context.Context, path, body string) error {
 func (m *JobManager) Running() int {
 	return m.scheduler.Running()
 }
-
-// Total returns the count of all jobs in jobs table.
-func (m *JobManager) Total(ctx context.Context) (int64, error) {
-	return m.table.Count(ctx)
-}
-
-// Pending returns the count of pending jobs in jobs table.
-func (m *JobManager) Pending(ctx context.Context) (int64, error) {
-	return m.table.Pending(ctx)
-}
-
-// Running returns the count of total running jobs in jobs table.
-func (m *JobManager) TotalRunning(ctx context.Context) (int64, error) {
-	return m.table.Running(ctx)
-}
-
-// Instances returns the count of running Dalga instances.
-func (m *JobManager) Instances(ctx context.Context) (int64, error) {
-	return m.table.Instances(ctx)
-}
-
-func (m *JobManager) Lag(ctx context.Context) (int64, error) {
-	return m.table.Lag(ctx)
-}
