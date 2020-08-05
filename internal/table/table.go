@@ -127,7 +127,7 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 		"WHERE next_run < UTC_TIMESTAMP() " +
 		"AND instance_id IS NULL " +
 		"ORDER BY next_run ASC LIMIT 1 " +
-		"FOR UPDATE SKIP LOCKED"
+		"FOR UPDATE"
 	row := tx.QueryRowContext(ctx, s)
 	var j Job
 	var interval uint32
