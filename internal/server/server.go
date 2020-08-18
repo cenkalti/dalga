@@ -222,14 +222,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	m := map[string]interface{}{
-		"instance_id":           s.instanceID,
-		"instance_running_jobs": s.jobs.Running(),
-		"running_jobs":          running,
-		"total_jobs":            total,
-		"pending_jobs":          pending,
-		"total_instances":       instances,
-		"lag":                   lag,
+	m := Status{
+		InstanceId:          s.instanceID,
+		InstanceRunningJobs: s.jobs.Running(),
+		RunningJobs:         running,
+		TotalJobs:           total,
+		PendingJobs:         pending,
+		TotalInstances:      instances,
+		Lag:                 lag,
 	}
 	data, err := json.Marshal(m)
 	if err != nil {
@@ -238,4 +238,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(data)
+}
+
+type Status struct {
+	InstanceId          uint32 `json:"instance_id"`
+	InstanceRunningJobs int    `json:"instance_running_jobs"`
+	RunningJobs         int64  `json:"running_jobs"`
+	TotalJobs           int64  `json:"total_jobs"`
+	PendingJobs         int64  `json:"pending_jobs"`
+	TotalInstances      int64  `json:"total_instances"`
+	Lag                 int64  `json:"lag"`
 }
