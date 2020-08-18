@@ -45,6 +45,7 @@ func dropTables(db *sql.DB, table string) error {
 
 func TestSchedule(t *testing.T) {
 	config := DefaultConfig
+	config.MySQL.SkipLocked = false
 
 	db, err := sql.Open("mysql", config.MySQL.DSN())
 	if err != nil {
