@@ -7,6 +7,10 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
+
+	"github.com/cenkalti/dalga/internal/clock"
 )
 
 var ErrNotExist = errors.New("job does not exist")
@@ -15,7 +19,7 @@ type Table struct {
 	db         *sql.DB
 	name       string
 	SkipLocked bool
-	Clk        *Clock
+	Clk        *clock.Clock
 }
 
 func New(db *sql.DB, name string) *Table {
@@ -50,6 +54,24 @@ func (t *Table) Create(ctx context.Context) error {
 	}
 	_, err = t.db.ExecContext(ctx, fmt.Sprintf(createTableSQL, t.name, t.name))
 	return err
+}
+
+func (t *Table) Drop(ctx context.Context) error {
+	dropSQL := "DROP TABLE " + t.name
+	_, err := t.db.Exec(dropSQL)
+	if err != nil {
+		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
+			return err
+		}
+	}
+	dropSQL = "DROP TABLE " + t.name + "_instances"
+	_, err = t.db.Exec(dropSQL)
+	if err != nil {
+		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
+			return err
+		}
+	}
+	return nil
 }
 
 func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {

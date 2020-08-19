@@ -122,11 +122,6 @@ func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
 	}
 	println("connected to db")
 
-	err = dropTables(db, config.MySQL.Table)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	d, err := New(config)
 	if err != nil {
 		t.Fatal(err)
@@ -134,6 +129,12 @@ func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
 	cleanups = append(cleanups, func() {
 		d.Close()
 	})
+
+	err = d.table.Drop(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	println("dropped table")
 
 	err = d.CreateTable()
 	if err != nil {
