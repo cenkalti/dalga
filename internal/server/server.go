@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
-	"github.com/cenkalti/dalga/internal/jobmanager"
-	"github.com/cenkalti/dalga/internal/log"
-	"github.com/cenkalti/dalga/internal/table"
+	"github.com/cenkalti/dalga/v2/internal/jobmanager"
+	"github.com/cenkalti/dalga/v2/internal/log"
+	"github.com/cenkalti/dalga/v2/internal/table"
 )
 
 type Server struct {

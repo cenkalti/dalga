@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/dalga/internal/jobmanager"
-	"github.com/cenkalti/dalga/internal/server"
-	"github.com/cenkalti/dalga/internal/table"
+	"github.com/cenkalti/dalga/v2/internal/jobmanager"
+	"github.com/cenkalti/dalga/v2/internal/server"
+	"github.com/cenkalti/dalga/v2/internal/table"
 )
 
 var (
