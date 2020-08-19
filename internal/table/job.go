@@ -42,17 +42,19 @@ func (j *Job) OneOff() bool {
 }
 
 func (j *Job) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Path       string        `json:"path"`
-		Body       string        `json:"body"`
-		Interval   time.Duration `json:"interval"`
-		NextRun    string        `json:"next_run"`
-		InstanceID *uint32       `json:"instance_id"`
-	}{
+	return json.Marshal(JobJSON{
 		Path:       j.Path,
 		Body:       j.Body,
 		Interval:   j.Interval / time.Second,
 		NextRun:    j.NextRun.Format(time.RFC3339),
 		InstanceID: j.InstanceID,
 	})
+}
+
+type JobJSON struct {
+	Path       string        `json:"path"`
+	Body       string        `json:"body"`
+	Interval   time.Duration `json:"interval"`
+	NextRun    string        `json:"next_run"`
+	InstanceID *uint32       `json:"instance_id"`
 }

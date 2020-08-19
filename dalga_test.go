@@ -47,24 +47,8 @@ func TestSchedule(t *testing.T) {
 	config := DefaultConfig
 	config.MySQL.SkipLocked = false
 
-	db, err := sql.Open("mysql", config.MySQL.DSN())
-	if err != nil {
-		t.Errorf(err.Error())
-		return
-	}
-
-	defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		t.Fatalf("cannot connect to mysql: %s", err.Error())
-	}
-	println("connected to db")
-
-	err = dropTables(db, config.MySQL.Table)
-	if err != nil {
-		t.Fatal(err)
-	}
+	d, lis, cleanup := newDalga(t, config)
+	defer cleanup()
 
 	called := make(chan string)
 	endpoint := func(w http.ResponseWriter, r *http.Request) {
@@ -77,19 +61,6 @@ func TestSchedule(t *testing.T) {
 	http.HandleFunc("/", endpoint)
 	go http.ListenAndServe(testAddr, nil)
 
-	d, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer d.Close()
-
-	err = d.CreateTable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	println("created table")
-	defer dropTables(db, config.MySQL.Table)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	go d.Run(ctx)
 	defer func() {
@@ -101,7 +72,7 @@ func TestSchedule(t *testing.T) {
 	values.Set("one-off", "true")
 	values.Set("first-run", "1990-01-01T00:00:00Z")
 
-	scheduleURL := "http://" + config.Listen.Addr() + "/jobs/testPath/" + testBody
+	scheduleURL := "http://" + lis.Addr() + "/jobs/testPath/" + testBody
 	req, err := http.NewRequest("PUT", scheduleURL, strings.NewReader(values.Encode()))
 	if err != nil {
 		t.Fatal(err)
@@ -133,4 +104,49 @@ func TestSchedule(t *testing.T) {
 		t.Fatal("timeout")
 	}
 	time.Sleep(time.Second)
+}
+
+func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
+	db, err := sql.Open("mysql", config.MySQL.DSN())
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	var cleanups []func()
+	cleanups = append(cleanups, func() {
+		db.Close()
+	})
+
+	err = db.Ping()
+	if err != nil {
+		t.Fatalf("cannot connect to mysql: %s", err.Error())
+	}
+	println("connected to db")
+
+	err = dropTables(db, config.MySQL.Table)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanups = append(cleanups, func() {
+		d.Close()
+	})
+
+	err = d.CreateTable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	println("created table")
+	cleanups = append(cleanups, func() {
+		dropTables(db, config.MySQL.Table)
+	})
+
+	return d, config.Listen, func() {
+		for _, fn := range cleanups {
+			fn()
+		}
+	}
 }
