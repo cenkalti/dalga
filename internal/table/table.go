@@ -12,9 +12,10 @@ import (
 var ErrNotExist = errors.New("job does not exist")
 
 type Table struct {
-	db   *sql.DB
-	name string
-	Clk  *Clock
+	db         *sql.DB
+	name       string
+	SkipLocked bool
+	Clk        *Clock
 }
 
 func New(db *sql.DB, name string) *Table {
@@ -128,7 +129,10 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 		"WHERE next_run < IFNULL(?, UTC_TIMESTAMP()) " +
 		"AND instance_id IS NULL " +
 		"ORDER BY next_run ASC LIMIT 1 " +
-		"FOR UPDATE SKIP LOCKED"
+		"FOR UPDATE"
+	if t.SkipLocked {
+		s += " SKIP LOCKED"
+	}
 	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC())
 	var j Job
 	var interval uint32

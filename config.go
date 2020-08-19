@@ -18,6 +18,7 @@ var DefaultConfig = Config{
 		User:         "root",
 		Password:     "",
 		MaxOpenConns: 50,
+		SkipLocked:   true,
 	},
 	Listen: listenConfig{
 		Host: "127.0.0.1",
@@ -53,6 +54,7 @@ type mysqlConfig struct {
 	User         string
 	Password     string
 	MaxOpenConns int
+	SkipLocked   bool
 }
 
 func (c mysqlConfig) DSN() string {

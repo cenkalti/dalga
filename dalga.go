@@ -50,6 +50,7 @@ func New(config Config) (*Dalga, error) {
 	log.Println("listening", lis.Addr())
 
 	t := table.New(db, config.MySQL.Table)
+	t.SkipLocked = config.MySQL.SkipLocked
 	i := instance.New(t)
 	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, time.Duration(config.Jobs.RetryInterval)*time.Second, config.Jobs.RandomizationFactor)
 	j := jobmanager.New(t, s)
