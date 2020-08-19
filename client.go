@@ -146,7 +146,7 @@ func (clnt *Client) Cancel(ctx context.Context, path, body string) error {
 	defer resp.Body.Close()
 	var buf bytes.Buffer
 	buf.ReadFrom(resp.Body)
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
 	}
 
@@ -206,15 +206,15 @@ func WithFirstRun(t time.Time) ScheduleOpt {
 	}
 }
 
-func WithOneOff(b bool) ScheduleOpt {
+func WithOneOff() ScheduleOpt {
 	return func(o *ScheduleOptions) {
-		o.OneOff = b
+		o.OneOff = true
 	}
 }
 
-func WithImmediate(b bool) ScheduleOpt {
+func WithImmediate() ScheduleOpt {
 	return func(o *ScheduleOptions) {
-		o.Immediate = b
+		o.Immediate = true
 	}
 }
 
