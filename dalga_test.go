@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/dalga/internal/log"
-	"github.com/go-sql-driver/mysql"
 )
 
 func init() {
@@ -23,25 +22,6 @@ const (
 	testTimeout = 5 * time.Second
 	testAddr    = "127.0.0.1:5000"
 )
-
-func dropTables(db *sql.DB, table string) error {
-	dropSQL := "DROP TABLE " + table
-	_, err := db.Exec(dropSQL)
-	if err != nil {
-		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
-			return err
-		}
-	}
-	dropSQL = "DROP TABLE " + table + "_instances"
-	_, err = db.Exec(dropSQL)
-	if err != nil {
-		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
-			return err
-		}
-	}
-	println("dropped tables")
-	return nil
-}
 
 func TestSchedule(t *testing.T) {
 	config := DefaultConfig
@@ -142,7 +122,7 @@ func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
 	}
 	println("created table")
 	cleanups = append(cleanups, func() {
-		dropTables(db, config.MySQL.Table)
+		d.table.Drop(context.Background())
 	})
 
 	return d, config.Listen, func() {
