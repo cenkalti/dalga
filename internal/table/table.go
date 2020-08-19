@@ -14,7 +14,7 @@ var ErrNotExist = errors.New("job does not exist")
 type Table struct {
 	db   *sql.DB
 	name string
-	clk  *Clock
+	Clk  *Clock
 }
 
 func New(db *sql.DB, name string) *Table {
@@ -85,7 +85,7 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay time.Durati
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
 			"VALUES (?, ?, ?, IFNULL(?, UTC_TIMESTAMP()) + INTERVAL ? SECOND)"
-		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, t.clk.NowUTC(), delay/time.Second)
+		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, t.Clk.NowUTC(), delay/time.Second)
 	} else {
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
@@ -129,7 +129,7 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 		"AND instance_id IS NULL " +
 		"ORDER BY next_run ASC LIMIT 1 " +
 		"FOR UPDATE SKIP LOCKED"
-	row := tx.QueryRowContext(ctx, s, t.clk.NowUTC())
+	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC())
 	var j Job
 	var interval uint32
 	err = row.Scan(&j.Path, &j.Body, &interval, &j.NextRun)
@@ -150,7 +150,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay time.Duration)
 	s := "UPDATE " + t.name + " " + // nolint: gosec
 		"SET next_run=IFNULL(?, UTC_TIMESTAMP()) + INTERVAL ? SECOND, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
-	_, err := t.db.ExecContext(ctx, s, t.clk.NowUTC(), delay/time.Second, key.Path, key.Body)
+	_, err := t.db.ExecContext(ctx, s, t.Clk.NowUTC(), delay/time.Second, key.Path, key.Body)
 	return err
 }
 
@@ -174,7 +174,7 @@ func (t *Table) Pending(ctx context.Context) (int64, error) {
 	s := "SELECT COUNT(*) FROM " + t.name + " " + // nolint: gosec
 		"WHERE next_run < IFNULL(?, UTC_TIMESTAMP())"
 	var count int64
-	return count, t.db.QueryRowContext(ctx, s, t.clk.NowUTC()).Scan(&count)
+	return count, t.db.QueryRowContext(ctx, s, t.Clk.NowUTC()).Scan(&count)
 }
 
 // Lag returns the number of seconds passed from the execution time of the oldest pending job.
@@ -182,7 +182,7 @@ func (t *Table) Lag(ctx context.Context) (int64, error) {
 	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, IFNULL(?, UTC_TIMESTAMP())) FROM " + t.name + " " + // nolint: gosec
 		"WHERE next_run < IFNULL(?, UTC_TIMESTAMP()) AND instance_id is NULL " +
 		"ORDER BY next_run ASC LIMIT 1"
-	now := t.clk.NowUTC()
+	now := t.Clk.NowUTC()
 	var lag int64
 	err := t.db.QueryRowContext(ctx, s, now, now).Scan(&lag)
 	if err == sql.ErrNoRows {
@@ -208,8 +208,8 @@ func (t *Table) Instances(ctx context.Context) (int64, error) {
 
 func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
 	s := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(?, UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
-	s += ";DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(?, UTC_TIMESTAMP()) - INTERVAL 1 MINUTE"                                                                                           // nolint: gosec
-	now := t.clk.NowUTC()
+	s += ";DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(?, UTC_TIMESTAMP) - INTERVAL 1 MINUTE"                                                                                             // nolint: gosec
+	now := t.Clk.NowUTC()
 	_, err := t.db.ExecContext(ctx, s, now, now, now)
 	return err
 }
