@@ -44,8 +44,10 @@ func dropTables(db *sql.DB, table string) error {
 }
 
 func TestSchedule(t *testing.T) {
+	config := DefaultConfig
+	config.MySQL.SkipLocked = false
 
-	d, lis, cleanup := newDalga(t, DefaultConfig)
+	d, lis, cleanup := newDalga(t, config)
 	defer cleanup()
 
 	called := make(chan string)
