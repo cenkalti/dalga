@@ -207,11 +207,21 @@ func (t *Table) Instances(ctx context.Context) (int64, error) {
 }
 
 func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
-	s := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(?, UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
-	s += ";DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(?, UTC_TIMESTAMP) - INTERVAL 1 MINUTE"                                                                                             // nolint: gosec
+	tx, err := t.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	now := t.Clk.NowUTC()
-	_, err := t.db.ExecContext(ctx, s, now, now, now)
-	return err
+	s1 := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(?, UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
+	if _, err = tx.ExecContext(ctx, s1, now, now); err != nil {
+		return err
+	}
+	s2 := "DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(?, UTC_TIMESTAMP) - INTERVAL 1 MINUTE" // nolint: gosec
+	if _, err = tx.ExecContext(ctx, s2, now); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (t *Table) DeleteInstance(ctx context.Context, id uint32) error {
