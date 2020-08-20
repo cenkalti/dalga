@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"strconv"
 	"time"
@@ -111,20 +110,15 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	}
 	defer tx.Rollback() // nolint: errcheck
 	if nextRun.IsZero() {
-		nowUTC := t.Clk.NowUTC()
-		log.Printf("clock: %v", nowUTC)
-		row := tx.QueryRowContext(ctx, "SELECT IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())", nowUTC)
+		row := tx.QueryRowContext(ctx, "SELECT IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())", t.Clk.NowUTC())
 		var now time.Time
 		if err := row.Scan(&now); err != nil {
 			return nil, err
 		}
-		log.Printf("now: %v", now)
-		then := delay.Shift(now)
-		log.Printf("then: %v", then)
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
 			"VALUES (?, ?, ?, ?)"
-		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), then)
+		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), delay.Shift(now))
 	} else {
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
