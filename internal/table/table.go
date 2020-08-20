@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 
-	"github.com/cenkalti/dalga/internal/clock"
+	"github.com/cenkalti/dalga/v2/internal/clock"
 )
 
 var ErrNotExist = errors.New("job does not exist")
