@@ -12,8 +12,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/senseyeio/duration"
 
-	"github.com/cenkalti/dalga/internal/log"
-	"github.com/cenkalti/dalga/internal/table"
+	"github.com/cenkalti/dalga/v2/internal/log"
+	"github.com/cenkalti/dalga/v2/internal/table"
 )
 
 type Scheduler struct {
@@ -28,16 +28,17 @@ type Scheduler struct {
 }
 
 func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryInterval duration.Duration, randomizationFactor float64) *Scheduler {
-	s := &Scheduler{
+	return &Scheduler{
 		table:               t,
 		instanceID:          instanceID,
 		baseURL:             baseURL,
 		randomizationFactor: randomizationFactor,
 		retryInterval:       retryInterval,
 		done:                make(chan struct{}),
+		client: http.Client{
+			Timeout: clientTimeout,
+		},
 	}
-	s.client.Timeout = clientTimeout
-	return s
 }
 
 func (s *Scheduler) NotifyDone() <-chan struct{} {
@@ -114,11 +115,10 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err error) {
 	url := s.baseURL + j.Path
 	log.Debugln("doing http post to ", url)
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(j.Body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(j.Body))
 	if err != nil {
 		return
 	}
-	req = req.WithContext(ctx)
 	req.Header.Set("content-type", "text/plain")
 	resp, err := s.client.Do(req)
 	if err != nil {

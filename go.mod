@@ -1,4 +1,4 @@
-module github.com/cenkalti/dalga
+module github.com/cenkalti/dalga/v2
 
 go 1.13
 

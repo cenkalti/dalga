@@ -8,7 +8,7 @@ import (
 
 	"github.com/senseyeio/duration"
 
-	"github.com/cenkalti/dalga/internal/clock"
+	"github.com/cenkalti/dalga/v2/internal/clock"
 )
 
 var dsn = "root:@tcp(127.0.0.1:3306)/test?parseTime=true&multiStatements=true"

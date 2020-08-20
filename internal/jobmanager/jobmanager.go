@@ -7,9 +7,9 @@ import (
 
 	"github.com/senseyeio/duration"
 
-	"github.com/cenkalti/dalga/internal/log"
-	"github.com/cenkalti/dalga/internal/scheduler"
-	"github.com/cenkalti/dalga/internal/table"
+	"github.com/cenkalti/dalga/v2/internal/log"
+	"github.com/cenkalti/dalga/v2/internal/scheduler"
+	"github.com/cenkalti/dalga/v2/internal/table"
 )
 
 type JobManager struct {
