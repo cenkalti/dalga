@@ -233,11 +233,13 @@ func (t *Table) Instances(ctx context.Context) (int64, error) {
 }
 
 func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
+	// The MySQL driver doesn't support multiple statements in a single Exec if they contain placeholders.
+	// That's why we use a transaction.
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() // nolint: errcheck
 	now := t.Clk.NowUTC()
 	s1 := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(?, UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
 	if _, err = tx.ExecContext(ctx, s1, now, now); err != nil {
