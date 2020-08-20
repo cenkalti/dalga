@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/senseyeio/duration"
 
 	"github.com/cenkalti/dalga/internal/jobmanager"
 	"github.com/cenkalti/dalga/internal/server"
@@ -84,8 +85,8 @@ func (clnt *Client) Schedule(ctx context.Context, path, body string, opts ...Sch
 	}
 
 	values := make(url.Values)
-	if so.Interval > 0 {
-		values.Set("interval", strconv.Itoa(int(so.Interval/time.Second)))
+	if !so.Interval.IsZero() {
+		values.Set("interval", so.Interval.String())
 	}
 	if !so.FirstRun.IsZero() {
 		values.Set("first-run", so.FirstRun.Format(time.RFC3339))
@@ -194,10 +195,18 @@ type ScheduleOptions = jobmanager.ScheduleOptions
 
 type ScheduleOpt func(o *ScheduleOptions)
 
-func WithInterval(d time.Duration) ScheduleOpt {
+func WithInterval(d duration.Duration) ScheduleOpt {
 	return func(o *ScheduleOptions) {
 		o.Interval = d
 	}
+}
+
+func MustWithIntervalString(s string) ScheduleOpt {
+	d, err := duration.ParseISO8601(s)
+	if err != nil {
+		panic(err)
+	}
+	return WithInterval(d)
 }
 
 func WithFirstRun(t time.Time) ScheduleOpt {

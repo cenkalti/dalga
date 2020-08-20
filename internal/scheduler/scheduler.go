@@ -4,15 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
+	"github.com/senseyeio/duration"
+
 	"github.com/cenkalti/dalga/internal/log"
 	"github.com/cenkalti/dalga/internal/table"
-	"github.com/go-sql-driver/mysql"
 )
 
 type Scheduler struct {
@@ -21,12 +22,12 @@ type Scheduler struct {
 	client              http.Client
 	baseURL             string
 	randomizationFactor float64
-	retryInterval       time.Duration
+	retryInterval       duration.Duration
 	runningJobs         int32
 	done                chan struct{}
 }
 
-func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout, retryInterval time.Duration, randomizationFactor float64) *Scheduler {
+func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryInterval duration.Duration, randomizationFactor float64) *Scheduler {
 	s := &Scheduler{
 		table:               t,
 		instanceID:          instanceID,
@@ -91,18 +92,13 @@ func (s *Scheduler) Run(ctx context.Context) {
 	}
 }
 
-func randomize(d time.Duration, f float64) time.Duration {
-	delta := time.Duration(f * float64(d))
-	return d - delta + time.Duration(float64(2*delta)*rand.Float64())
-}
-
 // execute makes a POST request to the endpoint and updates the Job's next run time.
 func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 	log.Debugln("executing:", j.String())
 	code, err := s.postJob(ctx, j)
 	if err != nil {
 		log.Printf("error while doing http post for %s: %s", j.String(), err)
-		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval)
+		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval, 0)
 	}
 	if j.OneOff() {
 		log.Debugln("deleting one-off job")
@@ -112,12 +108,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 		log.Debugln("deleting not found job")
 		return s.table.DeleteJob(ctx, j.Key)
 	}
-	add := j.Interval
-	if s.randomizationFactor > 0 {
-		// Add some randomization to periodic tasks.
-		add = randomize(add, s.randomizationFactor)
-	}
-	return s.table.UpdateNextRun(ctx, j.Key, add)
+	return s.table.UpdateNextRun(ctx, j.Key, j.Interval, s.randomizationFactor)
 }
 
 func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err error) {

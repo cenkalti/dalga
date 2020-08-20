@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/senseyeio/duration"
+
 	"github.com/cenkalti/dalga/internal/log"
 	"github.com/cenkalti/dalga/internal/scheduler"
 	"github.com/cenkalti/dalga/internal/table"
@@ -19,7 +21,7 @@ type ScheduleOptions struct {
 	OneOff    bool
 	Immediate bool
 	FirstRun  time.Time
-	Interval  time.Duration
+	Interval  duration.Duration
 }
 
 var ErrInvalidArgs = errors.New("invalid arguments")
@@ -43,32 +45,32 @@ func (m *JobManager) Schedule(ctx context.Context, path, body string, opt Schedu
 		Body: body,
 	}
 
-	var interval time.Duration
-	var delay time.Duration
+	var interval duration.Duration
+	var delay duration.Duration
 	var nextRun time.Time
 	switch {
 	case opt.OneOff && opt.Immediate: // one-off and immediate
 		// both first-run and interval params must be zero
-		if !opt.FirstRun.IsZero() || opt.Interval != 0 {
+		if !opt.FirstRun.IsZero() || !opt.Interval.IsZero() {
 			return nil, ErrInvalidArgs
 		}
 	case opt.OneOff && !opt.Immediate: // one-off but later
 		// only one of from first-run and interval params must be set
-		if (!opt.FirstRun.IsZero() && opt.Interval != 0) || (opt.FirstRun.IsZero() && opt.Interval == 0) {
+		if (!opt.FirstRun.IsZero() && !opt.Interval.IsZero()) || (opt.FirstRun.IsZero() && opt.Interval.IsZero()) {
 			return nil, ErrInvalidArgs
 		}
-		if opt.Interval != 0 {
+		if !opt.Interval.IsZero() {
 			delay = opt.Interval
 		} else {
 			nextRun = opt.FirstRun
 		}
 	case !opt.OneOff && opt.Immediate: // periodic and immediate
-		if opt.Interval == 0 || !opt.FirstRun.IsZero() {
+		if opt.Interval.IsZero() || !opt.FirstRun.IsZero() {
 			return nil, ErrInvalidArgs
 		}
 		interval = opt.Interval
 	default: // periodic
-		if opt.Interval == 0 {
+		if opt.Interval.IsZero() {
 			return nil, ErrInvalidArgs
 		}
 		interval = opt.Interval

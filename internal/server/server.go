@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
+	"github.com/senseyeio/duration"
+
 	"github.com/cenkalti/dalga/internal/jobmanager"
 	"github.com/cenkalti/dalga/internal/log"
 	"github.com/cenkalti/dalga/internal/table"
@@ -150,12 +152,11 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request, path, bo
 
 	intervalParam := r.FormValue("interval")
 	if intervalParam != "" {
-		i64, err := strconv.ParseUint(intervalParam, 10, 32)
+		opt.Interval, err = duration.ParseISO8601(intervalParam)
 		if err != nil {
 			http.Error(w, "cannot parse interval", http.StatusBadRequest)
 			return
 		}
-		opt.Interval = time.Duration(uint32(i64)) * time.Second
 	}
 
 	firstRunParam := r.FormValue("first-run")

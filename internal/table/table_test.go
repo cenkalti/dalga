@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/senseyeio/duration"
+
 	"github.com/cenkalti/dalga/internal/clock"
 )
 
@@ -24,7 +26,7 @@ func TestAddJob(t *testing.T) {
 
 	ctx := context.Background()
 
-	now := time.Date(2020, time.August, 19, 11, 46, 0, 0, time.UTC)
+	now := time.Date(2020, time.August, 19, 11, 46, 0, 0, time.Local)
 	firstRun := now.Add(time.Minute * 30)
 
 	table := New(db, "test_jobs")
@@ -39,7 +41,7 @@ func TestAddJob(t *testing.T) {
 	j, err := table.AddJob(ctx, Key{
 		Path: "abc",
 		Body: "def",
-	}, time.Minute*60, time.Minute*30, time.Time{})
+	}, mustDuration("PT60M"), mustDuration("PT30M"), time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,4 +68,12 @@ func TestAddJob(t *testing.T) {
 	if j.Key.Path != "abc" || j.Key.Body != "def" {
 		t.Fatalf("unexpected key %v", j.Key)
 	}
+}
+
+func mustDuration(s string) duration.Duration {
+	d, err := duration.ParseISO8601(s)
+	if err != nil {
+		panic(err)
+	}
+	return d
 }

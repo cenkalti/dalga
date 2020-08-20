@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/senseyeio/duration"
 
 	"github.com/cenkalti/dalga/internal/clock"
 )
@@ -35,7 +37,7 @@ func (t *Table) Create(ctx context.Context) error {
 		"CREATE TABLE `%s` (" +
 		"  `path`        VARCHAR(255)        NOT NULL," +
 		"  `body`        VARCHAR(255)        NOT NULL," +
-		"  `interval`    INT UNSIGNED        NOT NULL," +
+		"  `interval`    VARCHAR(255)        NOT NULL," +
 		"  `next_run`    DATETIME            NOT NULL," +
 		"  `instance_id` INT                 UNSIGNED," +
 		"  PRIMARY KEY (`path`, `body`)," +
@@ -80,7 +82,7 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 		"WHERE path = ? AND body = ?"
 	row := t.db.QueryRowContext(ctx, s, path, body)
 	var j Job
-	var interval uint32
+	var interval string
 	var instanceID sql.NullInt64
 	err := row.Scan(&j.Path, &j.Body, &interval, &j.NextRun, &instanceID)
 	if err == sql.ErrNoRows {
@@ -89,7 +91,10 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	j.Interval = time.Duration(interval) * time.Second
+	j.Interval, err = duration.ParseISO8601(interval)
+	if err != nil {
+		return nil, err
+	}
 	if instanceID.Valid {
 		id := uint32(instanceID.Int64)
 		j.InstanceID = &id
@@ -98,22 +103,27 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 }
 
 // Insert the job to to scheduler table.
-func (t *Table) AddJob(ctx context.Context, key Key, interval, delay time.Duration, nextRun time.Time) (*Job, error) {
+func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Duration, nextRun time.Time) (*Job, error) {
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback() // nolint: errcheck
 	if nextRun.IsZero() {
+		row := tx.QueryRowContext(ctx, "SELECT IFNULL(DATE(?), UTC_TIMESTAMP())", t.Clk.NowUTC())
+		var now time.Time
+		if err := row.Scan(&now); err != nil {
+			return nil, err
+		}
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
-			"VALUES (?, ?, ?, IFNULL(?, UTC_TIMESTAMP()) + INTERVAL ? SECOND)"
-		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, t.Clk.NowUTC(), delay/time.Second)
+			"VALUES (?, ?, ?, ?)"
+		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), delay.Shift(now))
 	} else {
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
 			"VALUES (?, ?, ?, ?)"
-		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval/time.Second, nextRun)
+		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), nextRun)
 	}
 	if err != nil {
 		return nil, err
@@ -148,7 +158,7 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	defer tx.Rollback() // nolint: errcheck
 	s := "SELECT path, body, `interval`, next_run " +
 		"FROM " + t.name + " " +
-		"WHERE next_run < IFNULL(?, UTC_TIMESTAMP()) " +
+		"WHERE next_run < IFNULL(DATE(?), UTC_TIMESTAMP()) " +
 		"AND instance_id IS NULL " +
 		"ORDER BY next_run ASC LIMIT 1 " +
 		"FOR UPDATE"
@@ -157,12 +167,15 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	}
 	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC())
 	var j Job
-	var interval uint32
+	var interval string
 	err = row.Scan(&j.Path, &j.Body, &interval, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
-	j.Interval = time.Duration(interval) * time.Second
+	j.Interval, err = duration.ParseISO8601(interval)
+	if err != nil {
+		return nil, err
+	}
 	s = "UPDATE " + t.name + " SET instance_id=? WHERE path=? AND body=?" // nolint: gosec
 	_, err = tx.ExecContext(ctx, s, instanceID, j.Path, j.Body)
 	if err != nil {
@@ -172,12 +185,33 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 }
 
 // UpdateNextRun sets next_run to now+interval.
-func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay time.Duration) error {
+func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Duration, randFactor float64) error {
+	tx, err := t.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var now time.Time
+	row := tx.QueryRowContext(ctx, "SELECT IFNULL(DATE(?), UTC_TIMESTAMP())", t.Clk.NowUTC())
+	if err := row.Scan(&now); err != nil {
+		return err
+	}
+	then := delay.Shift(now)
+	if randFactor > 0 {
+		diff := randomize(then.Sub(now), randFactor)
+		then = now.Add(diff)
+	}
+
 	s := "UPDATE " + t.name + " " + // nolint: gosec
-		"SET next_run=IFNULL(?, UTC_TIMESTAMP()) + INTERVAL ? SECOND, instance_id=NULL " +
+		"SET next_run=?, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
-	_, err := t.db.ExecContext(ctx, s, t.Clk.NowUTC(), delay/time.Second, key.Path, key.Body)
-	return err
+	_, err = t.db.ExecContext(ctx, s, t.Clk.NowUTC(), then, key.Path, key.Body)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (t *Table) UpdateInstanceID(ctx context.Context, key Key, instanceID uint32) error {
@@ -198,15 +232,15 @@ func (t *Table) Count(ctx context.Context) (int64, error) {
 // Pending returns the count of pending jobs in the table.
 func (t *Table) Pending(ctx context.Context) (int64, error) {
 	s := "SELECT COUNT(*) FROM " + t.name + " " + // nolint: gosec
-		"WHERE next_run < IFNULL(?, UTC_TIMESTAMP())"
+		"WHERE next_run < IFNULL(DATE(?), UTC_TIMESTAMP())"
 	var count int64
 	return count, t.db.QueryRowContext(ctx, s, t.Clk.NowUTC()).Scan(&count)
 }
 
 // Lag returns the number of seconds passed from the execution time of the oldest pending job.
 func (t *Table) Lag(ctx context.Context) (int64, error) {
-	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, IFNULL(?, UTC_TIMESTAMP())) FROM " + t.name + " " + // nolint: gosec
-		"WHERE next_run < IFNULL(?, UTC_TIMESTAMP()) AND instance_id is NULL " +
+	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, IFNULL(DATE(?), UTC_TIMESTAMP())) FROM " + t.name + " " + // nolint: gosec
+		"WHERE next_run < IFNULL(DATE(?), UTC_TIMESTAMP()) AND instance_id is NULL " +
 		"ORDER BY next_run ASC LIMIT 1"
 	now := t.Clk.NowUTC()
 	var lag int64
@@ -239,11 +273,11 @@ func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
 	}
 	defer tx.Rollback()
 	now := t.Clk.NowUTC()
-	s1 := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(?, UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
+	s1 := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(DATE(?), UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
 	if _, err = tx.ExecContext(ctx, s1, now, now); err != nil {
 		return err
 	}
-	s2 := "DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(?, UTC_TIMESTAMP) - INTERVAL 1 MINUTE" // nolint: gosec
+	s2 := "DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(DATE(?), UTC_TIMESTAMP) - INTERVAL 1 MINUTE" // nolint: gosec
 	if _, err = tx.ExecContext(ctx, s2, now); err != nil {
 		return err
 	}
@@ -254,4 +288,9 @@ func (t *Table) DeleteInstance(ctx context.Context, id uint32) error {
 	s := "DELETE FROM " + t.name + "_instances WHERE id=?" // nolint: gosec
 	_, err := t.db.ExecContext(ctx, s, id)
 	return err
+}
+
+func randomize(d time.Duration, f float64) time.Duration {
+	delta := time.Duration(f * float64(d))
+	return d - delta + time.Duration(float64(2*delta)*rand.Float64())
 }
