@@ -44,6 +44,7 @@ func (c *Config) LoadFromFile(filename string) error {
 type jobsConfig struct {
 	RandomizationFactor float64
 	RetryInterval       string
+	FixedIntervals      bool
 }
 
 type mysqlConfig struct {

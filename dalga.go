@@ -10,6 +10,7 @@ import (
 
 	"github.com/senseyeio/duration"
 
+	"github.com/cenkalti/dalga/v2/internal/clock"
 	"github.com/cenkalti/dalga/v2/internal/instance"
 	"github.com/cenkalti/dalga/v2/internal/jobmanager"
 	"github.com/cenkalti/dalga/v2/internal/scheduler"
@@ -58,6 +59,7 @@ func New(config Config) (*Dalga, error) {
 
 	t := table.New(db, config.MySQL.Table)
 	t.SkipLocked = config.MySQL.SkipLocked
+	t.FixedIntervals = config.Jobs.FixedIntervals
 	i := instance.New(t)
 	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, interval, config.Jobs.RandomizationFactor)
 	j := jobmanager.New(t, s)
@@ -104,4 +106,9 @@ func (d *Dalga) Run(ctx context.Context) {
 // CreateTable creates the table for storing jobs on database.
 func (d *Dalga) CreateTable() error {
 	return d.table.Create(context.Background())
+}
+
+func (d *Dalga) UseClock(now time.Time) *clock.Clock {
+	d.table.Clk = clock.New(now)
+	return d.table.Clk
 }

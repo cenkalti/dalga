@@ -114,7 +114,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 
 func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err error) {
 	url := s.baseURL + j.Path
-	log.Debugln("doing http post to ", url)
+	log.Debugln("doing http post to", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(j.Body))
 	if err != nil {
 		return

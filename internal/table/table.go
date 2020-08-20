@@ -18,10 +18,11 @@ import (
 var ErrNotExist = errors.New("job does not exist")
 
 type Table struct {
-	db         *sql.DB
-	name       string
-	SkipLocked bool
-	Clk        *clock.Clock
+	db             *sql.DB
+	name           string
+	SkipLocked     bool
+	FixedIntervals bool
+	Clk            *clock.Clock
 }
 
 func New(db *sql.DB, name string) *Table {
@@ -197,16 +198,28 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	if err := row.Scan(&now); err != nil {
 		return err
 	}
-	then := delay.Shift(now)
-	if randFactor > 0 {
-		diff := randomize(then.Sub(now), randFactor)
-		then = now.Add(diff)
+
+	var nextRun time.Time
+	if t.FixedIntervals {
+		row := tx.QueryRowContext(ctx, "SELECT next_run FROM "+t.name+" WHERE path = ? AND body = ?", key.Path, key.Body)
+		if err := row.Scan(&nextRun); err != nil {
+			return err
+		}
+		for nextRun.Before(now) {
+			nextRun = delay.Shift(nextRun)
+		}
+	} else {
+		nextRun = delay.Shift(now)
+		if randFactor > 0 {
+			diff := randomize(nextRun.Sub(now), randFactor)
+			nextRun = now.Add(diff)
+		}
 	}
 
 	s := "UPDATE " + t.name + " " + // nolint: gosec
 		"SET next_run=?, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
-	_, err = t.db.ExecContext(ctx, s, t.Clk.NowUTC(), then, key.Path, key.Body)
+	_, err = t.db.ExecContext(ctx, s, nextRun, key.Path, key.Body)
 	if err != nil {
 		return err
 	}

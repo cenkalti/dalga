@@ -1,6 +1,7 @@
 package clock
 
 import (
+	"log"
 	"sync"
 	"time"
 )
@@ -23,6 +24,7 @@ func (clk *Clock) Set(t time.Time) {
 func (clk *Clock) Get() time.Time {
 	clk.l.RLock()
 	defer clk.l.RUnlock()
+	log.Printf("Returning time: %s", clk.t.Format(time.RFC3339))
 	return clk.t
 }
 
