@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"strconv"
 	"time"
@@ -110,15 +111,20 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	}
 	defer tx.Rollback() // nolint: errcheck
 	if nextRun.IsZero() {
-		row := tx.QueryRowContext(ctx, "SELECT IFNULL(DATE(?), UTC_TIMESTAMP())", t.Clk.NowUTC())
+		nowUTC := t.Clk.NowUTC()
+		log.Printf("clock: %v", nowUTC)
+		row := tx.QueryRowContext(ctx, "SELECT IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())", nowUTC)
 		var now time.Time
 		if err := row.Scan(&now); err != nil {
 			return nil, err
 		}
+		log.Printf("now: %v", now)
+		then := delay.Shift(now)
+		log.Printf("then: %v", then)
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
 			"VALUES (?, ?, ?, ?)"
-		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), delay.Shift(now))
+		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), then)
 	} else {
 		s := "REPLACE INTO " + t.name + // nolint: gosec
 			"(path, body, `interval`, next_run) " +
@@ -158,7 +164,7 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	defer tx.Rollback() // nolint: errcheck
 	s := "SELECT path, body, `interval`, next_run " +
 		"FROM " + t.name + " " +
-		"WHERE next_run < IFNULL(DATE(?), UTC_TIMESTAMP()) " +
+		"WHERE next_run < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP()) " +
 		"AND instance_id IS NULL " +
 		"ORDER BY next_run ASC LIMIT 1 " +
 		"FOR UPDATE"
@@ -193,7 +199,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	defer tx.Rollback()
 
 	var now time.Time
-	row := tx.QueryRowContext(ctx, "SELECT IFNULL(DATE(?), UTC_TIMESTAMP())", t.Clk.NowUTC())
+	row := tx.QueryRowContext(ctx, "SELECT IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())", t.Clk.NowUTC())
 	if err := row.Scan(&now); err != nil {
 		return err
 	}
@@ -232,15 +238,15 @@ func (t *Table) Count(ctx context.Context) (int64, error) {
 // Pending returns the count of pending jobs in the table.
 func (t *Table) Pending(ctx context.Context) (int64, error) {
 	s := "SELECT COUNT(*) FROM " + t.name + " " + // nolint: gosec
-		"WHERE next_run < IFNULL(DATE(?), UTC_TIMESTAMP())"
+		"WHERE next_run < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())"
 	var count int64
 	return count, t.db.QueryRowContext(ctx, s, t.Clk.NowUTC()).Scan(&count)
 }
 
 // Lag returns the number of seconds passed from the execution time of the oldest pending job.
 func (t *Table) Lag(ctx context.Context) (int64, error) {
-	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, IFNULL(DATE(?), UTC_TIMESTAMP())) FROM " + t.name + " " + // nolint: gosec
-		"WHERE next_run < IFNULL(DATE(?), UTC_TIMESTAMP()) AND instance_id is NULL " +
+	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())) FROM " + t.name + " " + // nolint: gosec
+		"WHERE next_run < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP()) AND instance_id is NULL " +
 		"ORDER BY next_run ASC LIMIT 1"
 	now := t.Clk.NowUTC()
 	var lag int64
@@ -273,11 +279,11 @@ func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
 	}
 	defer tx.Rollback()
 	now := t.Clk.NowUTC()
-	s1 := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(DATE(?), UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
+	s1 := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
 	if _, err = tx.ExecContext(ctx, s1, now, now); err != nil {
 		return err
 	}
-	s2 := "DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(DATE(?), UTC_TIMESTAMP) - INTERVAL 1 MINUTE" // nolint: gosec
+	s2 := "DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP) - INTERVAL 1 MINUTE" // nolint: gosec
 	if _, err = tx.ExecContext(ctx, s2, now); err != nil {
 		return err
 	}
