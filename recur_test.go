@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -118,15 +119,6 @@ func TestRecur(t *testing.T) {
 		},
 	}
 
-	config := DefaultConfig
-	config.MySQL.SkipLocked = false
-	config.Jobs.FixedIntervals = true
-
-	d, lis, cleanup := newDalga(t, config)
-	defer cleanup()
-
-	clk := d.UseClock(time.Time{})
-
 	called := make(chan string)
 	endpoint := func(w http.ResponseWriter, r *http.Request) {
 		var buf bytes.Buffer
@@ -137,7 +129,19 @@ func TestRecur(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", endpoint)
-	go http.ListenAndServe(testAddr, mux)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	config := DefaultConfig
+	config.MySQL.SkipLocked = false
+	config.Jobs.FixedIntervals = true
+	config.Jobs.ScanFrequency = 1000
+	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
+
+	d, lis, cleanup := newDalga(t, config)
+	defer cleanup()
+
+	clk := d.UseClock(time.Time{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go d.Run(ctx)

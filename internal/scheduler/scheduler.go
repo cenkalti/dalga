@@ -24,16 +24,18 @@ type Scheduler struct {
 	randomizationFactor float64
 	retryInterval       duration.Duration
 	runningJobs         int32
+	scanFrequency       time.Duration
 	done                chan struct{}
 }
 
-func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryInterval duration.Duration, randomizationFactor float64) *Scheduler {
+func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryInterval duration.Duration, randomizationFactor float64, scanFrequency time.Duration) *Scheduler {
 	return &Scheduler{
 		table:               t,
 		instanceID:          instanceID,
 		baseURL:             baseURL,
 		randomizationFactor: randomizationFactor,
 		retryInterval:       retryInterval,
+		scanFrequency:       scanFrequency,
 		done:                make(chan struct{}),
 		client: http.Client{
 			Timeout: clientTimeout,
@@ -63,7 +65,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 		if err == sql.ErrNoRows {
 			log.Debugln("no scheduled jobs in the table")
 			select {
-			case <-time.After(time.Second):
+			case <-time.After(s.scanFrequency):
 			case <-ctx.Done():
 				return
 			}
@@ -76,7 +78,7 @@ func (s *Scheduler) Run(ctx context.Context) {
 		if err != nil {
 			log.Println("error while getting next job:", err)
 			select {
-			case <-time.After(time.Second):
+			case <-time.After(s.scanFrequency):
 			case <-ctx.Done():
 				return
 			}

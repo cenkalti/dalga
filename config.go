@@ -9,6 +9,7 @@ import (
 var DefaultConfig = Config{
 	Jobs: jobsConfig{
 		RetryInterval: "PT1M",
+		ScanFrequency: 1000,
 	},
 	MySQL: mysqlConfig{
 		Host:         "127.0.0.1",
@@ -45,6 +46,7 @@ type jobsConfig struct {
 	RandomizationFactor float64
 	RetryInterval       string
 	FixedIntervals      bool
+	ScanFrequency       int
 }
 
 type mysqlConfig struct {

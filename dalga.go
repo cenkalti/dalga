@@ -61,7 +61,7 @@ func New(config Config) (*Dalga, error) {
 	t.SkipLocked = config.MySQL.SkipLocked
 	t.FixedIntervals = config.Jobs.FixedIntervals
 	i := instance.New(t)
-	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, interval, config.Jobs.RandomizationFactor)
+	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, interval, config.Jobs.RandomizationFactor, time.Millisecond*time.Duration(config.Jobs.ScanFrequency))
 	j := jobmanager.New(t, s)
 	srv := server.New(j, t, i.ID(), lis, 10*time.Second)
 	return &Dalga{

@@ -36,6 +36,7 @@ func TestAddJob(t *testing.T) {
 	if err := table.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
+	table.SkipLocked = false
 
 	table.Clk = clock.New(now)
 	j, err := table.AddJob(ctx, Key{
