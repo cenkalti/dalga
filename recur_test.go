@@ -1,6 +1,6 @@
 package dalga
 
-// These test cases are derived from job_recurring_test.go in https://github.com/ajvb/kala
+// These test cases are adapted from job_recurring_test.go in https://github.com/ajvb/kala
 
 import (
 	"bytes"
@@ -45,8 +45,8 @@ func TestRecur(t *testing.T) {
 			Checkpoints: []string{
 				"2020-Mar-06 14:09",
 				"2020-Mar-07 14:09",
-				"2020-Mar-08 14:09",
-				"2020-Mar-09 14:09",
+				"2020-Mar-08 15:09",
+				"2020-Mar-09 15:09",
 			},
 		},
 		{
@@ -79,14 +79,14 @@ func TestRecur(t *testing.T) {
 			Interval: "P1M",
 			Checkpoints: []string{
 				"2020-Feb-20 14:09",
-				"2020-Mar-20 14:09",
-				"2020-Apr-20 14:09",
-				"2020-May-20 14:09",
-				"2020-Jun-20 14:09",
-				"2020-Jul-20 14:09",
-				"2020-Aug-20 14:09",
-				"2020-Sep-20 14:09",
-				"2020-Oct-20 14:09",
+				"2020-Mar-20 15:09",
+				"2020-Apr-20 15:09",
+				"2020-May-20 15:09",
+				"2020-Jun-20 15:09",
+				"2020-Jul-20 15:09",
+				"2020-Aug-20 15:09",
+				"2020-Sep-20 15:09",
+				"2020-Oct-20 15:09",
 				"2020-Nov-20 14:09",
 				"2020-Dec-20 14:09",
 				"2021-Jan-20 14:09",
@@ -95,12 +95,12 @@ func TestRecur(t *testing.T) {
 		{
 			Name:     "Monthly with Normalization",
 			Location: "America/Los_Angeles",
-			Start:    "2020-Jul-31 14:09",
+			Start:    "2020-Mar-31 14:09",
 			Interval: "P1M",
 			Checkpoints: []string{
-				"2020-Aug-31 14:09",
-				"2020-Oct-01 14:09",
-				"2020-Nov-01 14:09",
+				"2020-May-01 14:09",
+				"2020-Jun-01 14:09",
+				"2020-Jul-01 14:09",
 			},
 		},
 		{
@@ -129,12 +129,10 @@ func TestRecur(t *testing.T) {
 
 	called := make(chan string)
 	endpoint := func(w http.ResponseWriter, r *http.Request) {
-		t.Log("received request")
 		var buf bytes.Buffer
 		buf.ReadFrom(r.Body)
 		r.Body.Close()
 		called <- buf.String()
-		t.Log("sent request on channel")
 	}
 
 	mux := http.NewServeMux()
@@ -164,8 +162,6 @@ func TestRecur(t *testing.T) {
 
 			for i, chk := range checkpoints {
 
-				t.Logf("Pre-advance checkpoint %d with: %v", i, chk)
-
 				clk.Set(parseTimeInLocation(t, chk, testStruct.Location))
 
 				select {
@@ -176,15 +172,11 @@ func TestRecur(t *testing.T) {
 
 				clk.Add(time.Second * 6)
 
-				t.Logf("Post-advance checkpoint %d with: %v", i, chk)
-
 				select {
 				case <-called:
 				case <-time.After(testTimeout):
 					t.Fatalf("Expected job to have run on checkpoint %d of test %s.", i, testStruct.Name)
 				}
-
-				t.Logf("Done checkpoint %d with: %v", i, chk)
 
 				time.Sleep(time.Millisecond * 500)
 			}
