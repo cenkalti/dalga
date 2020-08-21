@@ -135,7 +135,7 @@ func TestRecur(t *testing.T) {
 	config := DefaultConfig
 	config.MySQL.SkipLocked = false
 	config.Jobs.FixedIntervals = true
-	config.Jobs.ScanFrequency = 1000
+	config.Jobs.ScanFrequency = 100
 	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
 
 	d, lis, cleanup := newDalga(t, config)
@@ -183,6 +183,10 @@ func TestRecur(t *testing.T) {
 				}
 
 				time.Sleep(time.Millisecond * 500)
+			}
+
+			if err := client.Cancel(ctx, "what", testBody); err != nil {
+				t.Fatal(err)
 			}
 
 		})
