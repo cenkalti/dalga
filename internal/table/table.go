@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"strconv"
 	"time"
@@ -39,6 +40,7 @@ func (t *Table) Create(ctx context.Context) error {
 		"  `path`        VARCHAR(255)        NOT NULL," +
 		"  `body`        VARCHAR(255)        NOT NULL," +
 		"  `interval`    VARCHAR(255)        NOT NULL," +
+		"  `location`    VARCHAR(255)        NOT NULL," +
 		"  `next_run`    DATETIME            NOT NULL," +
 		"  `instance_id` INT                 UNSIGNED," +
 		"  PRIMARY KEY (`path`, `body`)," +
@@ -104,7 +106,8 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 }
 
 // Insert the job to to scheduler table.
-func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Duration, nextRun time.Time) (*Job, error) {
+func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Duration, location *time.Location, nextRun time.Time) (*Job, error) {
+	log.Printf("Adding job in location: %v", location)
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -116,20 +119,17 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 		if err := row.Scan(&now); err != nil {
 			return nil, err
 		}
-		s := "REPLACE INTO " + t.name + // nolint: gosec
-			"(path, body, `interval`, next_run) " +
-			"VALUES (?, ?, ?, ?)"
-		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), delay.Shift(now))
-	} else {
-		s := "REPLACE INTO " + t.name + // nolint: gosec
-			"(path, body, `interval`, next_run) " +
-			"VALUES (?, ?, ?, ?)"
-		_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), nextRun)
+		now = now.In(location)
+		nextRun = delay.Shift(now)
 	}
+	s := "REPLACE INTO " + t.name + // nolint: gosec
+		"(path, body, `interval`, location, next_run) " +
+		"VALUES (?, ?, ?, ?, ?)"
+	_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), location.String(), nextRun.UTC())
 	if err != nil {
 		return nil, err
 	}
-	s := "SELECT next_run FROM " + t.name + " WHERE path=? AND body=?" // nolint: gosec
+	s = "SELECT next_run FROM " + t.name + " WHERE path=? AND body=?" // nolint: gosec
 	row := tx.QueryRowContext(ctx, s, key.Path, key.Body)
 	err = row.Scan(&nextRun)
 	if err != nil {
@@ -138,6 +138,7 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	job := &Job{
 		Key:      key,
 		Interval: interval,
+		Location: location,
 		NextRun:  nextRun,
 	}
 	return job, tx.Commit()
@@ -157,7 +158,7 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 		return nil, err
 	}
 	defer tx.Rollback() // nolint: errcheck
-	s := "SELECT path, body, `interval`, next_run " +
+	s := "SELECT path, body, `interval`, location, next_run " +
 		"FROM " + t.name + " " +
 		"WHERE next_run < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP()) " +
 		"AND instance_id IS NULL " +
@@ -168,8 +169,8 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	}
 	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC())
 	var j Job
-	var interval string
-	err = row.Scan(&j.Path, &j.Body, &interval, &j.NextRun)
+	var interval, location string
+	err = row.Scan(&j.Path, &j.Body, &interval, &location, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +178,11 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
+	j.Location, err = time.LoadLocation(location)
+	if err != nil {
+		return nil, err
+	}
+	j.NextRun = j.NextRun.In(j.Location)
 	s = "UPDATE " + t.name + " SET instance_id=? WHERE path=? AND body=?" // nolint: gosec
 	_, err = tx.ExecContext(ctx, s, instanceID, j.Path, j.Body)
 	if err != nil {
@@ -193,18 +199,28 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	}
 	defer tx.Rollback()
 
-	var now time.Time
-	row := tx.QueryRowContext(ctx, "SELECT IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())", t.Clk.NowUTC())
-	if err := row.Scan(&now); err != nil {
+	var locationName string
+	var now, nextRun time.Time
+	s := "SELECT location, next_run, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())" +
+		" FROM " + t.name + " WHERE path = ? AND body = ? FOR UPDATE"
+	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC(), key.Path, key.Body)
+	if err := row.Scan(&locationName, &nextRun, &now); err != nil {
 		return err
 	}
 
-	var nextRun time.Time
+	// Default to UTC in case it's omitted somehow in the database.
+	if locationName == "" {
+		locationName = time.UTC.String()
+	}
+
+	location, err := time.LoadLocation(locationName)
+	if err != nil {
+		return err
+	}
+	now = now.In(location)
+	nextRun = nextRun.In(location)
+
 	if t.FixedIntervals {
-		row := tx.QueryRowContext(ctx, "SELECT next_run FROM "+t.name+" WHERE path = ? AND body = ?", key.Path, key.Body)
-		if err := row.Scan(&nextRun); err != nil {
-			return err
-		}
 		for nextRun.Before(now) {
 			nextRun = delay.Shift(nextRun)
 		}
@@ -216,10 +232,12 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 		}
 	}
 
-	s := "UPDATE " + t.name + " " + // nolint: gosec
-		"SET next_run=?, instance_id=NULL " +
+	log.Printf("next run: %s", nextRun.Format(time.RFC3339))
+
+	s = "UPDATE " + t.name + " " + // nolint: gosec
+		"SET next_run=?, instance_id=NULL, location=? " +
 		"WHERE path = ? AND body = ?"
-	_, err = t.db.ExecContext(ctx, s, nextRun, key.Path, key.Body)
+	_, err = tx.ExecContext(ctx, s, nextRun.UTC(), locationName, key.Path, key.Body)
 	if err != nil {
 		return err
 	}

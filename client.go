@@ -88,6 +88,9 @@ func (clnt *Client) Schedule(ctx context.Context, path, body string, opts ...Sch
 	if !so.Interval.IsZero() {
 		values.Set("interval", so.Interval.String())
 	}
+	if so.Location != nil {
+		values.Set("location", so.Location.String())
+	}
 	if !so.FirstRun.IsZero() {
 		values.Set("first-run", so.FirstRun.Format(time.RFC3339))
 	}
@@ -207,6 +210,20 @@ func MustWithIntervalString(s string) ScheduleOpt {
 		panic(err)
 	}
 	return WithInterval(d)
+}
+
+func WithLocation(l *time.Location) ScheduleOpt {
+	return func(o *ScheduleOptions) {
+		o.Location = l
+	}
+}
+
+func MustWithLocationName(n string) ScheduleOpt {
+	l, err := time.LoadLocation(n)
+	if err != nil {
+		panic(err)
+	}
+	return WithLocation(l)
 }
 
 func WithFirstRun(t time.Time) ScheduleOpt {

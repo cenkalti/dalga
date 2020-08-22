@@ -15,6 +15,9 @@ type Job struct {
 	// Interval is the duration between each POST to the endpoint.
 	// Interval is "" for one-off jobs.
 	Interval duration.Duration
+	// Interval is relative to the Location.
+	// Format is the tz database name, such as America/Los_Angeles.
+	Location *time.Location
 	// NextRun is the next run time of the job, stored in UTC.
 	NextRun time.Time
 	// Job is running if not nil.
@@ -34,8 +37,7 @@ func (j *Job) String() string {
 	if j.InstanceID != nil {
 		id = *j.InstanceID
 	}
-	format := "2006-01-02T15:04:05"
-	return fmt.Sprintf("Job<%q, %q, %s, %s, %d>", j.Path, j.Body, j.Interval.String(), j.NextRun.Format(format), id)
+	return fmt.Sprintf("Job<%q, %q, %s, %s, %s, %d>", j.Path, j.Body, j.Interval.String(), j.Location.String(), j.NextRun.Format(time.RFC3339), id)
 }
 
 // OneOff returns true for one-off jobs. One-off jobs are stored with empty interval on jobs table.
@@ -48,6 +50,7 @@ func (j *Job) MarshalJSON() ([]byte, error) {
 		Path:       j.Path,
 		Body:       j.Body,
 		Interval:   j.Interval.String(),
+		Location:   j.Location.String(),
 		NextRun:    j.NextRun.Format(time.RFC3339),
 		InstanceID: j.InstanceID,
 	})
@@ -57,6 +60,7 @@ type JobJSON struct {
 	Path       string  `json:"path"`
 	Body       string  `json:"body"`
 	Interval   string  `json:"interval"`
+	Location   string  `json:"location"`
 	NextRun    string  `json:"next_run"`
 	InstanceID *uint32 `json:"instance_id"`
 }

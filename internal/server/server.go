@@ -159,6 +159,16 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request, path, bo
 		}
 	}
 
+	opt.Location = time.UTC
+	locationParam := r.FormValue("location")
+	if locationParam != "" {
+		opt.Location, err = time.LoadLocation(locationParam)
+		if err != nil {
+			http.Error(w, "cannot parse location", http.StatusBadRequest)
+			return
+		}
+	}
+
 	firstRunParam := r.FormValue("first-run")
 	if firstRunParam != "" {
 		opt.FirstRun, err = time.Parse(time.RFC3339, firstRunParam)

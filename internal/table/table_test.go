@@ -42,7 +42,7 @@ func TestAddJob(t *testing.T) {
 	j, err := table.AddJob(ctx, Key{
 		Path: "abc",
 		Body: "def",
-	}, mustDuration("PT60M"), mustDuration("PT30M"), time.Time{})
+	}, mustDuration("PT60M"), mustDuration("PT30M"), time.UTC, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}

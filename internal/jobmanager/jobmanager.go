@@ -21,6 +21,7 @@ type ScheduleOptions struct {
 	OneOff    bool
 	Immediate bool
 	FirstRun  time.Time
+	Location  *time.Location
 	Interval  duration.Duration
 }
 
@@ -81,7 +82,7 @@ func (m *JobManager) Schedule(ctx context.Context, path, body string, opt Schedu
 		}
 	}
 	log.Debugln("job is scheduled:", key.Path, key.Body)
-	return m.table.AddJob(ctx, key, interval, delay, nextRun)
+	return m.table.AddJob(ctx, key, interval, delay, opt.Location, nextRun)
 }
 
 // Cancel deletes the job with path and body.

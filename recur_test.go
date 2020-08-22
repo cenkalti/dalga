@@ -46,8 +46,8 @@ func TestRecur(t *testing.T) {
 			Checkpoints: []string{
 				"2020-Mar-06 14:09",
 				"2020-Mar-07 14:09",
-				"2020-Mar-08 15:09",
-				"2020-Mar-09 15:09",
+				"2020-Mar-08 14:09",
+				"2020-Mar-09 14:09",
 			},
 		},
 		{
@@ -80,14 +80,14 @@ func TestRecur(t *testing.T) {
 			Interval: "P1M",
 			Checkpoints: []string{
 				"2020-Feb-20 14:09",
-				"2020-Mar-20 15:09",
-				"2020-Apr-20 15:09",
-				"2020-May-20 15:09",
-				"2020-Jun-20 15:09",
-				"2020-Jul-20 15:09",
-				"2020-Aug-20 15:09",
-				"2020-Sep-20 15:09",
-				"2020-Oct-20 15:09",
+				"2020-Mar-20 14:09",
+				"2020-Apr-20 14:09",
+				"2020-May-20 14:09",
+				"2020-Jun-20 14:09",
+				"2020-Jul-20 14:09",
+				"2020-Aug-20 14:09",
+				"2020-Sep-20 14:09",
+				"2020-Oct-20 14:09",
 				"2020-Nov-20 14:09",
 				"2020-Dec-20 14:09",
 				"2021-Jan-20 14:09",
@@ -96,12 +96,12 @@ func TestRecur(t *testing.T) {
 		{
 			Name:     "Monthly with Normalization",
 			Location: "America/Los_Angeles",
-			Start:    "2020-Mar-31 14:09",
+			Start:    "2020-Jul-31 14:09",
 			Interval: "P1M",
 			Checkpoints: []string{
-				"2020-May-01 14:09",
-				"2020-Jun-01 14:09",
-				"2020-Jul-01 14:09",
+				"2020-Aug-31 14:09",
+				"2020-Oct-01 14:09",
+				"2020-Nov-01 14:09",
 			},
 		},
 		{
@@ -135,7 +135,7 @@ func TestRecur(t *testing.T) {
 	config := DefaultConfig
 	config.MySQL.SkipLocked = false
 	config.Jobs.FixedIntervals = true
-	config.Jobs.ScanFrequency = 100
+	config.Jobs.ScanFrequency = 10
 	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
 
 	d, lis, cleanup := newDalga(t, config)
@@ -156,17 +156,29 @@ func TestRecur(t *testing.T) {
 		t.Run(testStruct.Name, func(t *testing.T) {
 			ctx := context.Background()
 
+			defer func() {
+				if err := client.Cancel(ctx, "what", testStruct.Name); err != nil {
+					t.Fatal(err)
+				}
+			}()
+
 			now := parseTimeInLocation(t, testStruct.Start, testStruct.Location)
 			clk.Set(now)
 
 			start := now.Add(time.Second * 5)
-			client.Schedule(ctx, "what", testBody, MustWithIntervalString(testStruct.Interval), WithFirstRun(start))
+			client.Schedule(ctx, "what", testStruct.Name,
+				MustWithIntervalString(testStruct.Interval),
+				WithFirstRun(start),
+				MustWithLocationName(testStruct.Location),
+			)
 
 			checkpoints := append([]string{testStruct.Start}, testStruct.Checkpoints...)
 
 			for i, chk := range checkpoints {
 
 				clk.Set(parseTimeInLocation(t, chk, testStruct.Location))
+
+				t.Logf("Checkpoint %d advanced time to: %s", i, clk.Get().Format(time.RFC3339))
 
 				select {
 				case <-called:
@@ -176,17 +188,18 @@ func TestRecur(t *testing.T) {
 
 				clk.Add(time.Second * 6)
 
+				t.Logf("Checkpoint %d advanced time to: %s", i, clk.Get().Format(time.RFC3339))
+
 				select {
-				case <-called:
+				case v := <-called:
+					if v != testStruct.Name {
+						t.Fatalf("Expected body '%s' but found '%s'", testStruct.Name, v)
+					}
 				case <-time.After(testTimeout):
 					t.Fatalf("Expected job to have run on checkpoint %d of test %s.", i, testStruct.Name)
 				}
 
 				time.Sleep(time.Millisecond * 500)
-			}
-
-			if err := client.Cancel(ctx, "what", testBody); err != nil {
-				t.Fatal(err)
 			}
 
 		})
