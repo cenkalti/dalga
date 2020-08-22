@@ -51,6 +51,18 @@ func TestRecur(t *testing.T) {
 			},
 		},
 		{
+			Name:     "Daily across DST boundary in UTC",
+			Location: time.UTC.String(),
+			Start:    "2020-Mar-05 14:09",
+			Interval: "P1D",
+			Checkpoints: []string{
+				"2020-Mar-06 14:09",
+				"2020-Mar-07 14:09",
+				"2020-Mar-08 14:09",
+				"2020-Mar-09 14:09",
+			},
+		},
+		{
 			Name:     "24 Hourly across DST boundary",
 			Location: "America/Los_Angeles",
 			Start:    "2020-Mar-05 14:09",
@@ -135,7 +147,7 @@ func TestRecur(t *testing.T) {
 	config := DefaultConfig
 	config.MySQL.SkipLocked = false
 	config.Jobs.FixedIntervals = true
-	config.Jobs.ScanFrequency = 10
+	config.Jobs.ScanFrequency = 100
 	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
 
 	d, lis, cleanup := newDalga(t, config)

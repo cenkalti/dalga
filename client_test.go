@@ -23,7 +23,7 @@ func TestClient(t *testing.T) {
 	config := DefaultConfig
 	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String()
 	config.MySQL.SkipLocked = false
-	d, lis, cleanup := newDalga(t, DefaultConfig)
+	d, lis, cleanup := newDalga(t, config)
 	defer cleanup()
 
 	ctx, cancel := context.WithCancel(context.Background())
