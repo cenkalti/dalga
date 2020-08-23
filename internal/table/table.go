@@ -80,20 +80,28 @@ func (t *Table) Drop(ctx context.Context) error {
 }
 
 func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
-	s := "SELECT path, body, `interval`, next_run, instance_id " +
+	s := "SELECT path, body, `interval`, location, next_run, instance_id " +
 		"FROM " + t.name + " " +
 		"WHERE path = ? AND body = ?"
 	row := t.db.QueryRowContext(ctx, s, path, body)
 	var j Job
-	var interval string
+	var interval, locationName string
 	var instanceID sql.NullInt64
-	err := row.Scan(&j.Path, &j.Body, &interval, &j.NextRun, &instanceID)
+	err := row.Scan(&j.Path, &j.Body, &interval, &locationName, &j.NextRun, &instanceID)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotExist
 	}
 	if err != nil {
 		return nil, err
 	}
+	if locationName == "" {
+		locationName = time.UTC.String() // Default to UTC in case it's omitted somehow in the database.
+	}
+	j.Location, err = time.LoadLocation(locationName)
+	if err != nil {
+		return nil, err
+	}
+	j.NextRun = j.NextRun.In(j.Location)
 	j.Interval, err = duration.ParseISO8601(interval)
 	if err != nil {
 		return nil, err
