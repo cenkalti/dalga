@@ -137,13 +137,6 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	if err != nil {
 		return nil, err
 	}
-	s = "SELECT next_run FROM " + t.name + " WHERE path=? AND body=?" // nolint: gosec
-	row := tx.QueryRowContext(ctx, s, key.Path, key.Body)
-	err = row.Scan(&nextRun)
-	if err != nil {
-		return nil, err
-	}
-	nextRun = nextRun.In(location)
 	job := &Job{
 		Key:      key,
 		Interval: interval,
