@@ -108,6 +108,8 @@ func (d *Dalga) CreateTable() error {
 	return d.table.Create(context.Background())
 }
 
+// UseClock overrides Dalga's datetime to help test schedules, retry behavior, etc.
+// Use the returned "clock" to manually advance time and trigger jobs as desired.
 func (d *Dalga) UseClock(now time.Time) *clock.Clock {
 	d.table.Clk = clock.New(now)
 	return d.table.Clk
