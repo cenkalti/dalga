@@ -42,13 +42,18 @@ func TestAddJob(t *testing.T) {
 	j, err := table.AddJob(ctx, Key{
 		Path: "abc",
 		Body: "def",
-	}, mustDuration("PT60M"), mustDuration("PT30M"), time.UTC, time.Time{})
+	}, mustDuration("PT60M"), mustDuration("PT30M"), time.Local, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !j.NextRun.Equal(firstRun) {
 		t.Fatalf("expected first run '%v' but found '%v'", firstRun, j.NextRun)
 	}
+	t.Run("AddJob returns timezoned job", func(t *testing.T) {
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
+		}
+	})
 
 	var instanceID uint32 = 123456
 	if err := table.UpdateInstance(ctx, instanceID); err != nil {
