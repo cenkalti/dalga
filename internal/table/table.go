@@ -202,10 +202,10 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	var locationName string
 	var now, nextRun time.Time
 	s := "SELECT location, next_run, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())" +
-		" FROM " + t.name + " WHERE path = ? AND body = ? FOR UPDATE"
+		" FROM " + t.name + " WHERE path = ? AND body = ?"
 	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC(), key.Path, key.Body)
 	if err := row.Scan(&locationName, &nextRun, &now); err != nil {
-		return err
+		return fmt.Errorf("failed to get last run of job: %w", err)
 	}
 
 	// Default to UTC in case it's omitted somehow in the database.
@@ -239,7 +239,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 		"WHERE path = ? AND body = ?"
 	_, err = tx.ExecContext(ctx, s, nextRun.UTC(), locationName, key.Path, key.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set next run: %w", err)
 	}
 
 	return tx.Commit()
