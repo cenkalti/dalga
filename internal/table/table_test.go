@@ -65,6 +65,16 @@ func TestAddJob(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err.Error())
 	}
 
+	t.Run("Get returns timezoned job", func(t *testing.T) {
+		j, err = table.Get(ctx, "abc", "def")
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err.Error())
+		}
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
+		}
+	})
+
 	table.Clk.Add(time.Minute * 31)
 
 	j, err = table.Front(ctx, instanceID)
