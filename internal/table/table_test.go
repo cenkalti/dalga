@@ -74,6 +74,11 @@ func TestAddJob(t *testing.T) {
 	if j.Key.Path != "abc" || j.Key.Body != "def" {
 		t.Fatalf("unexpected key %v", j.Key)
 	}
+	t.Run("Front returns timezoned job", func(t *testing.T) {
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
+		}
+	})
 }
 
 func mustDuration(s string) duration.Duration {
