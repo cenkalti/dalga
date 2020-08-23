@@ -171,8 +171,8 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	}
 	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC())
 	var j Job
-	var interval, location string
-	err = row.Scan(&j.Path, &j.Body, &interval, &location, &j.NextRun)
+	var interval, locationName string
+	err = row.Scan(&j.Path, &j.Body, &interval, &locationName, &j.NextRun)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,10 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	j.Location, err = time.LoadLocation(location)
+	if locationName == "" {
+		locationName = time.UTC.String() // Default to UTC in case it's omitted somehow in the database.
+	}
+	j.Location, err = time.LoadLocation(locationName)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +203,6 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 		return err
 	}
 	defer tx.Rollback()
-
 	var locationName string
 	var now, nextRun time.Time
 	s := "SELECT location, next_run, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())" +
@@ -209,19 +211,15 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	if err := row.Scan(&locationName, &nextRun, &now); err != nil {
 		return fmt.Errorf("failed to get last run of job: %w", err)
 	}
-
-	// Default to UTC in case it's omitted somehow in the database.
 	if locationName == "" {
-		locationName = time.UTC.String()
+		locationName = time.UTC.String() // Default to UTC in case it's omitted somehow in the database.
 	}
-
 	location, err := time.LoadLocation(locationName)
 	if err != nil {
 		return err
 	}
 	now = now.In(location)
 	nextRun = nextRun.In(location)
-
 	if t.FixedIntervals {
 		for nextRun.Before(now) {
 			nextRun = delay.Shift(nextRun)
@@ -233,9 +231,6 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 			nextRun = now.Add(diff)
 		}
 	}
-
-	log.Printf("next run: %s", nextRun.Format(time.RFC3339))
-
 	s = "UPDATE " + t.name + " " + // nolint: gosec
 		"SET next_run=?, instance_id=NULL, location=? " +
 		"WHERE path = ? AND body = ?"
@@ -243,7 +238,6 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	if err != nil {
 		return fmt.Errorf("failed to set next run: %w", err)
 	}
-
 	return tx.Commit()
 }
 
