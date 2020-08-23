@@ -101,7 +101,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 	code, err := s.postJob(ctx, j)
 	if err != nil {
 		log.Printf("error while doing http post for %s: %s", j.String(), err)
-		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval, 0)
+		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval, 0.0, true)
 	}
 	if j.OneOff() {
 		log.Debugln("deleting one-off job")
@@ -111,7 +111,7 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 		log.Debugln("deleting not found job")
 		return s.table.DeleteJob(ctx, j.Key)
 	}
-	return s.table.UpdateNextRun(ctx, j.Key, j.Interval, s.randomizationFactor)
+	return s.table.UpdateNextRun(ctx, j.Key, j.Interval, s.randomizationFactor, false)
 }
 
 func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err error) {
