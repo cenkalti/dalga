@@ -135,6 +135,7 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	if err != nil {
 		return nil, err
 	}
+	nextRun = nextRun.In(location)
 	job := &Job{
 		Key:      key,
 		Interval: interval,
