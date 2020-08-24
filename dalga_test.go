@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -20,16 +21,9 @@ func init() {
 const (
 	testBody    = "testBody"
 	testTimeout = 5 * time.Second
-	testAddr    = "127.0.0.1:5000"
 )
 
 func TestSchedule(t *testing.T) {
-	config := DefaultConfig
-	config.MySQL.SkipLocked = false
-
-	d, lis, cleanup := newDalga(t, config)
-	defer cleanup()
-
 	called := make(chan string)
 	endpoint := func(w http.ResponseWriter, r *http.Request) {
 		var buf bytes.Buffer
@@ -38,8 +32,17 @@ func TestSchedule(t *testing.T) {
 		called <- buf.String()
 	}
 
-	http.HandleFunc("/", endpoint)
-	go http.ListenAndServe(testAddr, nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", endpoint)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	config := DefaultConfig
+	config.MySQL.SkipLocked = false
+	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
+
+	d, lis, cleanup := newDalga(t, config)
+	defer cleanup()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go d.Run(ctx)

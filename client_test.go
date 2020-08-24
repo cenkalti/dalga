@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 )
 
 func TestClient(t *testing.T) {
@@ -23,7 +22,8 @@ func TestClient(t *testing.T) {
 
 	config := DefaultConfig
 	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String()
-	d, lis, cleanup := newDalga(t, DefaultConfig)
+	config.MySQL.SkipLocked = false
+	d, lis, cleanup := newDalga(t, config)
 	defer cleanup()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -45,7 +45,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("schedule", func(t *testing.T) {
-		if j, err := clnt.Schedule(callCtx, "when", "where", WithInterval(time.Minute)); err != nil {
+		if j, err := clnt.Schedule(callCtx, "when", "where", MustWithIntervalString("PT1M")); err != nil {
 			t.Fatal(err)
 		} else if j.Body != "where" {
 			t.Fatalf("unexpected body: %s", j.Body)

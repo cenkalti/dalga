@@ -8,6 +8,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/senseyeio/duration"
+
+	"github.com/cenkalti/dalga/v2/internal/clock"
 	"github.com/cenkalti/dalga/v2/internal/instance"
 	"github.com/cenkalti/dalga/v2/internal/jobmanager"
 	"github.com/cenkalti/dalga/v2/internal/scheduler"
@@ -49,10 +52,16 @@ func New(config Config) (*Dalga, error) {
 	}
 	log.Println("listening", lis.Addr())
 
+	interval, err := duration.ParseISO8601(config.Jobs.RetryInterval)
+	if err != nil {
+		return nil, err
+	}
+
 	t := table.New(db, config.MySQL.Table)
 	t.SkipLocked = config.MySQL.SkipLocked
+	t.FixedIntervals = config.Jobs.FixedIntervals
 	i := instance.New(t)
-	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, time.Duration(config.Jobs.RetryInterval)*time.Second, config.Jobs.RandomizationFactor)
+	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, interval, config.Jobs.RandomizationFactor, time.Millisecond*time.Duration(config.Jobs.ScanFrequency))
 	j := jobmanager.New(t, s)
 	srv := server.New(j, t, i.ID(), lis, 10*time.Second)
 	return &Dalga{
@@ -97,4 +106,11 @@ func (d *Dalga) Run(ctx context.Context) {
 // CreateTable creates the table for storing jobs on database.
 func (d *Dalga) CreateTable() error {
 	return d.table.Create(context.Background())
+}
+
+// UseClock overrides Dalga's datetime to help test schedules, retry behavior, etc.
+// Use the returned "clock" to manually advance time and trigger jobs as desired.
+func (d *Dalga) UseClock(now time.Time) *clock.Clock {
+	d.table.Clk = clock.New(now)
+	return d.table.Clk
 }

@@ -56,6 +56,6 @@ func (i *Instance) Run(ctx context.Context) {
 func (i *Instance) updateInstance(ctx context.Context) {
 	err := i.table.UpdateInstance(ctx, i.id)
 	if err != nil {
-		log.Print("cannot update instance at db:", err)
+		log.Print("cannot update instance at db: ", err)
 	}
 }

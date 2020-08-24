@@ -8,7 +8,8 @@ import (
 
 var DefaultConfig = Config{
 	Jobs: jobsConfig{
-		RetryInterval: 60,
+		RetryInterval: "PT1M",
+		ScanFrequency: 1000,
 	},
 	MySQL: mysqlConfig{
 		Host:         "127.0.0.1",
@@ -43,7 +44,9 @@ func (c *Config) LoadFromFile(filename string) error {
 
 type jobsConfig struct {
 	RandomizationFactor float64
-	RetryInterval       int
+	RetryInterval       string
+	FixedIntervals      bool
+	ScanFrequency       int
 }
 
 type mysqlConfig struct {
