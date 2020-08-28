@@ -23,6 +23,8 @@ func TestClient(t *testing.T) {
 	config := DefaultConfig
 	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String()
 	config.MySQL.SkipLocked = false
+	config.Listen.Port = 34007
+	config.MySQL.Table = "test_client"
 	d, lis, cleanup := newDalga(t, config)
 	defer cleanup()
 
