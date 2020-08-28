@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -122,6 +123,7 @@ func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err er
 		return
 	}
 	req.Header.Set("content-type", "text/plain")
+	req.Header.Set("dalga-sched", strconv.FormatInt(j.NextSched.Unix(), 10))
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return
