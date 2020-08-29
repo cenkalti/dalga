@@ -149,6 +149,7 @@ func TestRecur(t *testing.T) {
 	config.Jobs.FixedIntervals = true
 	config.Jobs.ScanFrequency = 100
 	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
+	config.Listen.Port = 34008
 
 	d, lis, cleanup := newDalga(t, config)
 	defer cleanup()
