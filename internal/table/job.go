@@ -1,6 +1,7 @@
 package table
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -19,7 +20,7 @@ type Job struct {
 	// Format is the tz database name, such as America/Los_Angeles.
 	Location *time.Location
 	// NextRun is the next run time of the job, including retries.
-	NextRun time.Time
+	NextRun sql.NullTime
 	// NextSched is the next time the job is scheduled to run, regardless of retries.
 	NextSched time.Time
 	// Job is running if not nil.
@@ -39,7 +40,7 @@ func (j *Job) String() string {
 	if j.InstanceID != nil {
 		id = *j.InstanceID
 	}
-	return fmt.Sprintf("Job<%q, %q, %s, %s, %s, %s, %d>", j.Path, j.Body, j.Interval.String(), j.Location.String(), j.NextRun.Format(time.RFC3339), j.NextSched.Format(time.RFC3339), id)
+	return fmt.Sprintf("Job<%q, %q, %s, %s, %s, %s, %d>", j.Path, j.Body, j.Interval.String(), j.Location.String(), j.NextRun.Time.Format(time.RFC3339), j.NextSched.Format(time.RFC3339), id)
 }
 
 // OneOff returns true for one-off jobs. One-off jobs are stored with empty interval on jobs table.
@@ -53,7 +54,7 @@ func (j *Job) MarshalJSON() ([]byte, error) {
 		Body:       j.Body,
 		Interval:   j.Interval.String(),
 		Location:   j.Location.String(),
-		NextRun:    j.NextRun.Format(time.RFC3339),
+		NextRun:    j.NextRun.Time.Format(time.RFC3339),
 		NextSched:  j.NextSched.Format(time.RFC3339),
 		InstanceID: j.InstanceID,
 	})

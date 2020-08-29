@@ -41,7 +41,7 @@ func (t *Table) Create(ctx context.Context) error {
 		"  `body`        VARCHAR(255)        NOT NULL," +
 		"  `interval`    VARCHAR(255)        NOT NULL," +
 		"  `location`    VARCHAR(255)        NOT NULL," +
-		"  `next_run`    DATETIME            NOT NULL," +
+		"  `next_run`    DATETIME                NULL," +
 		"  `next_sched`  DATETIME            NOT NULL," +
 		"  `instance_id` INT                 UNSIGNED," +
 		"  PRIMARY KEY (`path`, `body`)," +
@@ -102,7 +102,7 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	j.NextRun = j.NextRun.In(j.Location)
+	j.NextRun.Time = j.NextRun.Time.In(j.Location)
 	j.NextSched = j.NextSched.In(j.Location)
 	j.Interval, err = duration.ParseISO8601(interval)
 	if err != nil {
@@ -143,7 +143,7 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 		Key:       key,
 		Interval:  interval,
 		Location:  location,
-		NextRun:   nextRun,
+		NextRun:   sql.NullTime{Valid: true, Time: nextRun},
 		NextSched: nextRun,
 	}
 	return job, tx.Commit()
@@ -190,7 +190,7 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	j.NextRun = j.NextRun.In(j.Location)
+	j.NextRun.Time = j.NextRun.Time.In(j.Location)
 	j.NextSched = j.NextSched.In(j.Location)
 	s = "UPDATE " + t.name + " SET instance_id=? WHERE path=? AND body=?" // nolint: gosec
 	_, err = tx.ExecContext(ctx, s, instanceID, j.Path, j.Body)
@@ -201,14 +201,15 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 }
 
 // UpdateNextRun sets next_run to now+interval.
-func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Duration, randFactor float64, isRetry bool) error {
+func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Duration, randFactor float64, isRetry bool, isResume bool) error {
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	var locationName string
-	var now, nextRun, nextSched time.Time
+	var now, nextSched time.Time
+	var nextRun sql.NullTime
 	s := "SELECT location, next_run, next_sched, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())" +
 		" FROM " + t.name + " WHERE path = ? AND body = ?"
 	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC(), key.Path, key.Body)
@@ -223,29 +224,30 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 		return err
 	}
 	now = now.In(location)
-	nextRun = nextRun.In(location)
 	nextSched = nextSched.In(location)
-	if t.FixedIntervals {
-		if isRetry {
-			nextRun = delay.Shift(now)
-		} else {
-			for nextSched.Before(now) {
-				nextSched = delay.Shift(nextSched)
-			}
-			nextRun = nextSched
-		}
-	} else {
+	switch {
+	case !t.FixedIntervals:
 		nextSched = delay.Shift(now)
 		if randFactor > 0 {
 			diff := randomize(nextSched.Sub(now), randFactor)
 			nextSched = now.Add(diff)
 		}
-		nextRun = nextSched
+	case t.FixedIntervals && !isRetry:
+		for nextSched.Before(now) {
+			nextSched = delay.Shift(nextSched)
+		}
+	}
+	switch {
+	case !nextRun.Valid && !isResume:
+	case t.FixedIntervals && isRetry:
+		nextRun.Time = delay.Shift(now).UTC()
+	default:
+		nextRun.Time = nextSched.UTC()
 	}
 	s = "UPDATE " + t.name + " " + // nolint: gosec
 		"SET next_run=?, next_sched=?, instance_id=NULL, location=? " +
 		"WHERE path = ? AND body = ?"
-	_, err = tx.ExecContext(ctx, s, nextRun.UTC(), nextSched.UTC(), locationName, key.Path, key.Body)
+	_, err = tx.ExecContext(ctx, s, nextRun, nextSched.UTC(), locationName, key.Path, key.Body)
 	if err != nil {
 		return fmt.Errorf("failed to set next run: %w", err)
 	}

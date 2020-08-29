@@ -46,11 +46,11 @@ func TestAddJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !j.NextRun.Equal(firstRun) {
+	if !j.NextRun.Time.Equal(firstRun) {
 		t.Fatalf("expected first run '%v' but found '%v'", firstRun, j.NextRun)
 	}
 	t.Run("AddJob returns timezoned job", func(t *testing.T) {
-		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Time.Format(time.RFC3339); expect != found {
 			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
 		}
 	})
@@ -70,7 +70,7 @@ func TestAddJob(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err.Error())
 		}
-		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Time.Format(time.RFC3339); expect != found {
 			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
 		}
 	})
@@ -85,7 +85,7 @@ func TestAddJob(t *testing.T) {
 		t.Fatalf("unexpected key %v", j.Key)
 	}
 	t.Run("Front returns timezoned job", func(t *testing.T) {
-		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Time.Format(time.RFC3339); expect != found {
 			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
 		}
 	})
