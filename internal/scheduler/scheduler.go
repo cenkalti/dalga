@@ -96,6 +96,11 @@ func (s *Scheduler) Run(ctx context.Context) {
 	}
 }
 
+// ResumeJobSchedule enables a disabled job and schedules its next run.
+func (s *Scheduler) ResumeJobSchedule(ctx context.Context, j *table.Job) error {
+	return s.table.UpdateNextRun(ctx, j.Key, j.Interval, s.randomizationFactor, false, true)
+}
+
 // execute makes a POST request to the endpoint and updates the Job's next run time.
 func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 	log.Debugln("executing:", j.String())

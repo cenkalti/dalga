@@ -198,6 +198,38 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request, path, bo
 	_, _ = w.Write(data)
 }
 
+func (s *Server) handleDisable(w http.ResponseWriter, r *http.Request, path, body string) {
+	job, err := s.jobs.Disable(r.Context(), path, body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data, err := json.Marshal(job)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+func (s *Server) handleEnable(w http.ResponseWriter, r *http.Request, path, body string) {
+	job, err := s.jobs.Enable(r.Context(), path, body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data, err := json.Marshal(job)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request, path, body string) {
 	err := s.jobs.Cancel(r.Context(), path, body)
 	if err != nil {

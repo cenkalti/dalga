@@ -80,6 +80,7 @@ func (t *Table) Drop(ctx context.Context) error {
 	return nil
 }
 
+// Get returns a job from the scheduler table, whether or not it is disabled.
 func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 	s := "SELECT path, body, `interval`, location, next_run, next_sched, instance_id " +
 		"FROM " + t.name + " " +
@@ -117,7 +118,7 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 	return &j, nil
 }
 
-// Insert the job to to scheduler table.
+// AddJob inserts a job into the scheduler table.
 func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Duration, location *time.Location, nextRun time.Time) (*Job, error) {
 	log.Printf("Adding job in location: %v", location)
 	tx, err := t.db.BeginTx(ctx, nil)
@@ -151,20 +152,23 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	return job, tx.Commit()
 }
 
+// DisableJob prevents a job from running by setting next_run to NULL,
+// while preserving the value of next_sched.
 func (t *Table) DisableJob(ctx context.Context, key Key) error {
 	s := "UPDATE " + t.name + " SET next_run=NULL WHERE path = ? AND body = ?"
 	_, err := t.db.ExecContext(ctx, s, key.Path, key.Body)
 	return err
 }
 
-// Delete the job from scheduler table.
+// DeleteJob removes a job from scheduler table.
 func (t *Table) DeleteJob(ctx context.Context, key Key) error {
 	s := "DELETE FROM " + t.name + " WHERE path=? AND body=?" // nolint: gosec
 	_, err := t.db.ExecContext(ctx, s, key.Path, key.Body)
 	return err
 }
 
-// Front returns the next scheduled job from the table.
+// Front returns the next scheduled job from the table,
+// based on the value of next_run, and claims it for the calling instance.
 func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -208,13 +212,29 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	return &j, tx.Commit()
 }
 
-// UpdateNextRun sets next_run to now+interval.
-func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Duration, randFactor float64, isRetry bool, isResume bool) error {
+// UpdateNextRun sets next_run and next_sched, and unclaims it from an instance.
+//
+// With default settings, next_sched and next_run are set to now+delay.
+// This is also the behavior when scheduling a retry.
+// When enabling a job, next_run is set to next_sched; if next_sched is in the past,
+// the job will then be picked up for execution immediately.
+//
+// With FixedIntervals enabled, next_sched is advanced by the value of delay until it's in the future,
+// and next_run matches it. This is also the behavior when enabling a job.
+// If this is a retry, next_run is set to now+duration and next_sched is not adjusted.
+//
+// If UpdateNextRun is called on a disabled job without doEnable, as many happen when a job has been
+// disabled during execution, next_sched will advance but next_run will remain NULL.
+// Reversely, if doEnable is true but the job has a non-NULL next_run, the method call is a no-op.
+func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Duration, randFactor float64, isRetry bool, doEnable bool) error {
+	if isRetry && doEnable {
+		return errors.New("isRetry and doEnable are mutually exclusive parameters")
+	}
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() // nolint: errcheck
 	var locationName string
 	var now, nextSched time.Time
 	var nextRun sql.NullTime
@@ -223,6 +243,9 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC(), key.Path, key.Body)
 	if err := row.Scan(&locationName, &nextRun, &nextSched, &now); err != nil {
 		return fmt.Errorf("failed to get last run of job: %w", err)
+	}
+	if nextRun.Valid && doEnable {
+		return nil
 	}
 	if locationName == "" {
 		locationName = time.UTC.String() // Default to UTC in case it's omitted somehow in the database.
@@ -234,7 +257,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	now = now.In(location)
 	nextSched = nextSched.In(location)
 	switch {
-	case !t.FixedIntervals:
+	case !t.FixedIntervals && !doEnable:
 		nextSched = delay.Shift(now)
 		if randFactor > 0 {
 			diff := randomize(nextSched.Sub(now), randFactor)
@@ -246,7 +269,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 		}
 	}
 	switch {
-	case !nextRun.Valid && !isResume:
+	case !nextRun.Valid && !doEnable:
 	case t.FixedIntervals && isRetry:
 		nextRun.Time = delay.Shift(now).UTC()
 	default:
@@ -263,6 +286,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 	return tx.Commit()
 }
 
+// UpdateInstanceID claims a job for an instance.
 func (t *Table) UpdateInstanceID(ctx context.Context, key Key, instanceID uint32) error {
 	s := "UPDATE " + t.name + " " + // nolint: gosec
 		"SET instance_id=? " +
@@ -315,6 +339,9 @@ func (t *Table) Instances(ctx context.Context) (int64, error) {
 	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
 }
 
+// UpdateInstance adds the instance to the list of active instances,
+// and clears out any inactive instances from the list, such as
+// instances that were unable to call DeleteInstance during shutdown.
 func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
 	// The MySQL driver doesn't support multiple statements in a single Exec if they contain placeholders.
 	// That's why we use a transaction.
@@ -335,6 +362,7 @@ func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
 	return tx.Commit()
 }
 
+// DeleteInstance removes an entry from the list of active instances.
 func (t *Table) DeleteInstance(ctx context.Context, id uint32) error {
 	s := "DELETE FROM " + t.name + "_instances WHERE id=?" // nolint: gosec
 	_, err := t.db.ExecContext(ctx, s, id)
