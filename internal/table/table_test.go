@@ -89,6 +89,49 @@ func TestAddJob(t *testing.T) {
 			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
 		}
 	})
+
+	t.Run("Disable hides job", func(t *testing.T) {
+		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, false); err != nil {
+			t.Fatal(err)
+		}
+		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
+		if err := table.DisableJob(ctx, j.Key); err != nil {
+			t.Fatal(err)
+		}
+		_, err := table.Front(ctx, instanceID)
+		if err != sql.ErrNoRows {
+			t.Fatalf("unexpected error: %s", err.Error())
+		}
+	})
+
+	t.Run("Generic rescheduling won't re-enable a job", func(t *testing.T) {
+		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, false); err != nil {
+			t.Fatal(err)
+		}
+		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
+		_, err = table.Front(ctx, instanceID)
+		if err != sql.ErrNoRows {
+			t.Fatalf("unexpected error: %s", err.Error())
+		}
+	})
+
+	t.Run("Can re-enable", func(t *testing.T) {
+		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, true); err != nil {
+			t.Fatal(err)
+		}
+		_, err = table.Front(ctx, instanceID)
+		if err != sql.ErrNoRows {
+			t.Fatalf("unexpected error: %s", err.Error())
+		}
+		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
+		j, err = table.Front(ctx, instanceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if j.Key.Path != "abc" || j.Key.Body != "def" {
+			t.Fatalf("unexpected key %v", j.Key)
+		}
+	})
 }
 
 func mustDuration(s string) duration.Duration {

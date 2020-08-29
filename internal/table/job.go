@@ -40,7 +40,11 @@ func (j *Job) String() string {
 	if j.InstanceID != nil {
 		id = *j.InstanceID
 	}
-	return fmt.Sprintf("Job<%q, %q, %s, %s, %s, %s, %d>", j.Path, j.Body, j.Interval.String(), j.Location.String(), j.NextRun.Time.Format(time.RFC3339), j.NextSched.Format(time.RFC3339), id)
+	nextRun := "null"
+	if j.NextRun.Valid {
+		nextRun = j.NextRun.Time.Format(time.RFC3339)
+	}
+	return fmt.Sprintf("Job<%q, %q, %s, %s, %s, %s, %d>", j.Path, j.Body, j.Interval.String(), j.Location.String(), nextRun, j.NextSched.Format(time.RFC3339), id)
 }
 
 // OneOff returns true for one-off jobs. One-off jobs are stored with empty interval on jobs table.

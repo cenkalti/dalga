@@ -102,7 +102,9 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	j.NextRun.Time = j.NextRun.Time.In(j.Location)
+	if j.NextRun.Valid {
+		j.NextRun.Time = j.NextRun.Time.In(j.Location)
+	}
 	j.NextSched = j.NextSched.In(j.Location)
 	j.Interval, err = duration.ParseISO8601(interval)
 	if err != nil {
@@ -147,6 +149,12 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 		NextSched: nextRun,
 	}
 	return job, tx.Commit()
+}
+
+func (t *Table) DisableJob(ctx context.Context, key Key) error {
+	s := "UPDATE " + t.name + " SET next_run=NULL WHERE path = ? AND body = ?"
+	_, err := t.db.ExecContext(ctx, s, key.Path, key.Body)
+	return err
 }
 
 // Delete the job from scheduler table.
@@ -243,6 +251,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Durat
 		nextRun.Time = delay.Shift(now).UTC()
 	default:
 		nextRun.Time = nextSched.UTC()
+		nextRun.Valid = true
 	}
 	s = "UPDATE " + t.name + " " + // nolint: gosec
 		"SET next_run=?, next_sched=?, instance_id=NULL, location=? " +
