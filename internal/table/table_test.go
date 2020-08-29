@@ -37,6 +37,7 @@ func TestAddJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	table.SkipLocked = false
+	table.FixedIntervals = true
 
 	table.Clk = clock.New(now)
 	j, err := table.AddJob(ctx, Key{
@@ -121,7 +122,7 @@ func TestAddJob(t *testing.T) {
 		}
 		_, err = table.Front(ctx, instanceID)
 		if err != sql.ErrNoRows {
-			t.Fatalf("unexpected error: %s", err.Error())
+			t.Fatalf("unexpected error: %v", err)
 		}
 		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
 		j, err = table.Front(ctx, instanceID)

@@ -62,6 +62,22 @@ func TestClient(t *testing.T) {
 		}
 	})
 
+	t.Run("disable", func(t *testing.T) {
+		if j, err := clnt.Disable(callCtx, "when", "where"); err != nil {
+			t.Fatal(err)
+		} else if j.NextRun != nil {
+			t.Fatalf("unexpected next_run: %v", j.NextRun)
+		}
+	})
+
+	t.Run("enable", func(t *testing.T) {
+		if j, err := clnt.Enable(callCtx, "when", "where"); err != nil {
+			t.Fatal(err)
+		} else if j.NextRun == nil {
+			t.Fatalf("unexpected next_run: %v", j.NextRun)
+		}
+	})
+
 	t.Run("cancel", func(t *testing.T) {
 		if err := clnt.Cancel(callCtx, "when", "where"); err != nil {
 			t.Fatal(err)
