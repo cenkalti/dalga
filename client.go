@@ -180,7 +180,9 @@ func (clnt *Client) setEnabled(ctx context.Context, path, body string, enabled b
 	defer resp.Body.Close()
 	var buf bytes.Buffer
 	buf.ReadFrom(resp.Body)
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrNotExist
+	} else if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
 	}
 

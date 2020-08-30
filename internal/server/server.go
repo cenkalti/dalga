@@ -211,6 +211,10 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, path, body 
 		http.Error(w, "pass enable=true or disable=true query params", http.StatusBadRequest)
 		return
 	}
+	if err == table.ErrNotExist {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

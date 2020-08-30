@@ -105,6 +105,16 @@ func TestAddJob(t *testing.T) {
 		}
 	})
 
+	t.Run("Disabled jobs have no nextRun", func(t *testing.T) {
+		j, err := table.Get(ctx, j.Key.Path, j.Key.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if j.NextRun.Valid {
+			t.Fatalf("expected nextRun to be invalid: %v", j.NextRun)
+		}
+	})
+
 	t.Run("Generic rescheduling won't re-enable a job", func(t *testing.T) {
 		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, false); err != nil {
 			t.Fatal(err)
