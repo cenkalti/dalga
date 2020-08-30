@@ -234,6 +234,8 @@ func TestEnableScheduling(t *testing.T) {
 			d, lis, cleanup := newDalga(t, config)
 			defer cleanup()
 
+			clk := d.UseClock(test.start)
+
 			runCtx, cancel := context.WithCancel(context.Background())
 			go d.Run(runCtx)
 			defer func() {
@@ -242,7 +244,6 @@ func TestEnableScheduling(t *testing.T) {
 			}()
 
 			ctx := context.Background()
-			clk := d.UseClock(test.start)
 			clnt := NewClient("http://" + lis.Addr())
 
 			j, err := clnt.Schedule(ctx, "abc", test.name,
