@@ -296,3 +296,70 @@ func TestEnableScheduling(t *testing.T) {
 	}
 
 }
+
+// TestDisableRunningJob ensures that if a job is disabled after
+// it starts executing, the rescheduling action that occurs when
+// execution finishes will not inadvertently re-enable the job.
+func TestDisableRunningJob(t *testing.T) {
+
+	c1 := make(chan struct{})
+	c2 := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c1 <- struct{}{}
+		<-c2
+		w.Write([]byte("OK"))
+	}))
+
+	config := DefaultConfig
+	config.MySQL.SkipLocked = false
+	config.Listen.Port = 34010
+	config.MySQL.Table = "test_disable_running_job"
+	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
+
+	d, lis, cleanup := newDalga(t, config)
+	defer cleanup()
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	go d.Run(runCtx)
+	defer func() {
+		cancel()
+		<-d.NotifyDone()
+	}()
+
+	ctx := context.Background()
+	clnt := NewClient("http://" + lis.Addr())
+
+	_, err := clnt.Schedule(ctx, "alpha", "beta",
+		WithFirstRun(time.Now().Add(time.Second)),
+		MustWithIntervalString("PT1H"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-c1:
+	case <-time.After(time.Second * 3):
+		t.Fatal("never received POST")
+	}
+
+	j, err := clnt.Disable(ctx, "alpha", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.NextRun != nil {
+		t.Fatalf("unexpected nextRun: %v", *j.NextRun)
+	}
+
+	c2 <- struct{}{}
+	<-time.After(time.Millisecond * 100)
+
+	j, err = clnt.Get(ctx, "alpha", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.NextRun != nil {
+		t.Fatalf("unexpected nextRun: %v", *j.NextRun)
+	}
+
+}
