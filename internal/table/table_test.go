@@ -37,6 +37,7 @@ func TestAddJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	table.SkipLocked = false
+	table.FixedIntervals = true
 
 	table.Clk = clock.New(now)
 	j, err := table.AddJob(ctx, Key{
@@ -46,11 +47,11 @@ func TestAddJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !j.NextRun.Equal(firstRun) {
+	if !j.NextRun.Time.Equal(firstRun) {
 		t.Fatalf("expected first run '%v' but found '%v'", firstRun, j.NextRun)
 	}
 	t.Run("AddJob returns timezoned job", func(t *testing.T) {
-		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Time.Format(time.RFC3339); expect != found {
 			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
 		}
 	})
@@ -70,7 +71,7 @@ func TestAddJob(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err.Error())
 		}
-		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Time.Format(time.RFC3339); expect != found {
 			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
 		}
 	})
@@ -85,8 +86,61 @@ func TestAddJob(t *testing.T) {
 		t.Fatalf("unexpected key %v", j.Key)
 	}
 	t.Run("Front returns timezoned job", func(t *testing.T) {
-		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Format(time.RFC3339); expect != found {
+		if expect, found := firstRun.Format(time.RFC3339), j.NextRun.Time.Format(time.RFC3339); expect != found {
 			t.Fatalf("expected first run '%s' but found '%s'", expect, found)
+		}
+	})
+
+	t.Run("Disable hides job", func(t *testing.T) {
+		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, false); err != nil {
+			t.Fatal(err)
+		}
+		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
+		if err := table.DisableJob(ctx, j.Key); err != nil {
+			t.Fatal(err)
+		}
+		_, err := table.Front(ctx, instanceID)
+		if err != sql.ErrNoRows {
+			t.Fatalf("unexpected error: %s", err.Error())
+		}
+	})
+
+	t.Run("Disabled jobs have no nextRun", func(t *testing.T) {
+		j, err := table.Get(ctx, j.Key.Path, j.Key.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if j.NextRun.Valid {
+			t.Fatalf("expected nextRun to be invalid: %v", j.NextRun)
+		}
+	})
+
+	t.Run("Generic rescheduling won't re-enable a job", func(t *testing.T) {
+		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, false); err != nil {
+			t.Fatal(err)
+		}
+		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
+		_, err = table.Front(ctx, instanceID)
+		if err != sql.ErrNoRows {
+			t.Fatalf("unexpected error: %s", err.Error())
+		}
+	})
+
+	t.Run("Can re-enable", func(t *testing.T) {
+		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, true); err != nil {
+			t.Fatal(err)
+		}
+		_, err = table.Front(ctx, instanceID)
+		if err != sql.ErrNoRows {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
+		j, err = table.Front(ctx, instanceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if j.Key.Path != "abc" || j.Key.Body != "def" {
+			t.Fatalf("unexpected key %v", j.Key)
 		}
 	})
 }

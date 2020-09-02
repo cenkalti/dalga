@@ -68,6 +68,7 @@ func (s *Server) createServer() http.Server {
 	m := pat.New()
 	m.Get(path, handler(s.handleGet))
 	m.Put(path, handler(s.handleSchedule))
+	m.Patch(path, handler(s.handlePatch))
 	m.Del(path, handler(s.handleCancel))
 	m.Get("/status", http.HandlerFunc(s.handleStatus))
 	return http.Server{
@@ -195,6 +196,36 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request, path, bo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	_, _ = w.Write(data)
+}
+
+func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, path, body string) {
+	var job *table.Job
+	var err error
+	switch {
+	case r.URL.Query().Get("disable") == "true":
+		job, err = s.jobs.Disable(r.Context(), path, body)
+	case r.URL.Query().Get("enable") == "true":
+		job, err = s.jobs.Enable(r.Context(), path, body)
+	default:
+		http.Error(w, "pass enable=true or disable=true query params", http.StatusBadRequest)
+		return
+	}
+	if err == table.ErrNotExist {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	data, err := json.Marshal(job)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }
 
