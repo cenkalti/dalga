@@ -116,7 +116,7 @@ func TestEnableScheduling(t *testing.T) {
 	tests := []struct {
 		name        string
 		fixed       bool
-		retry       string
+		retry       int
 		start       time.Time
 		firstRun    time.Time
 		interval    string
@@ -129,7 +129,7 @@ func TestEnableScheduling(t *testing.T) {
 		{
 			name:        "brief-pause",
 			fixed:       false,
-			retry:       "PT1M",
+			retry:       60,
 			start:       start,
 			firstRun:    start.Add(time.Hour),
 			interval:    "PT5H",
@@ -142,7 +142,7 @@ func TestEnableScheduling(t *testing.T) {
 		{
 			name:        "brief-pause-fixed",
 			fixed:       true,
-			retry:       "PT1M",
+			retry:       60,
 			start:       start,
 			firstRun:    start.Add(time.Hour),
 			interval:    "PT5H",
@@ -155,7 +155,7 @@ func TestEnableScheduling(t *testing.T) {
 		{
 			name:        "brief-pause-during-retry",
 			fixed:       false,
-			retry:       "PT1M",
+			retry:       60,
 			start:       start,
 			firstRun:    start.Add(time.Hour),
 			interval:    "PT5H",
@@ -168,7 +168,7 @@ func TestEnableScheduling(t *testing.T) {
 		{
 			name:        "brief-pause-during-retry-fixed",
 			fixed:       true,
-			retry:       "PT1M",
+			retry:       60,
 			start:       start,
 			firstRun:    start.Add(time.Hour),
 			interval:    "PT5H",
@@ -181,7 +181,7 @@ func TestEnableScheduling(t *testing.T) {
 		{
 			name:        "pass-over-schedule-point",
 			fixed:       false,
-			retry:       "PT1M",
+			retry:       60,
 			start:       start,
 			firstRun:    start.Add(time.Hour),
 			interval:    "PT5H",
@@ -194,7 +194,7 @@ func TestEnableScheduling(t *testing.T) {
 		{
 			name:        "pass-over-schedule-point-fixed",
 			fixed:       true,
-			retry:       "PT1M",
+			retry:       60,
 			start:       start,
 			firstRun:    start.Add(time.Hour),
 			interval:    "PT5H",

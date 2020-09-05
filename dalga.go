@@ -8,8 +8,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/senseyeio/duration"
-
 	"github.com/cenkalti/dalga/v2/internal/clock"
 	"github.com/cenkalti/dalga/v2/internal/instance"
 	"github.com/cenkalti/dalga/v2/internal/jobmanager"
@@ -52,16 +50,11 @@ func New(config Config) (*Dalga, error) {
 	}
 	log.Println("listening", lis.Addr())
 
-	interval, err := duration.ParseISO8601(config.Jobs.RetryInterval)
-	if err != nil {
-		return nil, err
-	}
-
 	t := table.New(db, config.MySQL.Table)
 	t.SkipLocked = config.MySQL.SkipLocked
 	t.FixedIntervals = config.Jobs.FixedIntervals
 	i := instance.New(t)
-	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, interval, config.Jobs.RandomizationFactor, time.Millisecond*time.Duration(config.Jobs.ScanFrequency))
+	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, time.Duration(config.Jobs.RetryInterval)*time.Second, config.Jobs.RandomizationFactor, time.Millisecond*time.Duration(config.Jobs.ScanFrequency))
 	j := jobmanager.New(t, s)
 	srv := server.New(j, t, i.ID(), lis, 10*time.Second)
 	return &Dalga{

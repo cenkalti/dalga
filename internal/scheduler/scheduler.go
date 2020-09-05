@@ -23,13 +23,13 @@ type Scheduler struct {
 	client              http.Client
 	baseURL             string
 	randomizationFactor float64
-	retryInterval       duration.Duration
+	retryInterval       time.Duration
 	runningJobs         int32
 	scanFrequency       time.Duration
 	done                chan struct{}
 }
 
-func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryInterval duration.Duration, randomizationFactor float64, scanFrequency time.Duration) *Scheduler {
+func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryInterval time.Duration, randomizationFactor float64, scanFrequency time.Duration) *Scheduler {
 	return &Scheduler{
 		table:               t,
 		instanceID:          instanceID,
@@ -106,8 +106,9 @@ func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
 	log.Debugln("executing:", j.String())
 	code, err := s.postJob(ctx, j)
 	if err != nil {
+		delay := duration.Duration{TS: int(s.retryInterval / time.Second)}
 		log.Printf("error while doing http post for %s: %s", j.String(), err)
-		return s.table.UpdateNextRun(ctx, j.Key, s.retryInterval, 0.0, true, false)
+		return s.table.UpdateNextRun(ctx, j.Key, delay, 0.0, true, false)
 	}
 	if j.OneOff() {
 		log.Debugln("deleting one-off job")
