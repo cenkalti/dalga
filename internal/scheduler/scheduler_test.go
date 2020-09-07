@@ -39,6 +39,7 @@ func TestSchedHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
 
 	tbl := table.New(db, "sched")
 	if err := tbl.Drop(context.Background()); err != nil {
@@ -55,7 +56,7 @@ func TestSchedHeader(t *testing.T) {
 	i := instance.New(tbl)
 	go i.Run(ctx)
 
-	s := New(tbl, i.ID(), "http://"+srv.Listener.Addr().String()+"/", time.Second, nil, 0, time.Millisecond*250)
+	s := New(tbl, i.ID(), "http://"+srv.Listener.Addr().String()+"/", time.Second, nil, 0, 250*time.Millisecond)
 	go s.Run(ctx)
 
 	nextRun := time.Now().Add(time.Second).UTC()
