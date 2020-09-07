@@ -13,6 +13,7 @@ import (
 	"github.com/senseyeio/duration"
 
 	"github.com/cenkalti/dalga/v2/internal/instance"
+	"github.com/cenkalti/dalga/v2/internal/retry"
 	"github.com/cenkalti/dalga/v2/internal/table"
 )
 
@@ -33,6 +34,7 @@ func TestSchedHeader(t *testing.T) {
 			return
 		}
 		rcv <- unix
+		http.Error(w, "job failed", 500)
 	}))
 
 	db, err := sql.Open("mysql", dsn)
@@ -48,29 +50,48 @@ func TestSchedHeader(t *testing.T) {
 	if err := tbl.Create(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	defer tbl.Drop(context.Background())
+	defer tbl.Drop(context.Background()) // nolint: errcheck
+
+	r := &retry.Retry{
+		Interval:    time.Second,
+		MaxInterval: time.Second,
+		Multiplier:  1,
+	}
+	i := instance.New(tbl)
+	s := New(tbl, i.ID(), "http://"+srv.Listener.Addr().String()+"/", 4*time.Second, r, 0, 250*time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	i := instance.New(tbl)
+	defer func() {
+		cancel()
+		<-i.NotifyDone()
+		<-s.NotifyDone()
+	}()
 	go i.Run(ctx)
-
-	s := New(tbl, i.ID(), "http://"+srv.Listener.Addr().String()+"/", time.Second, nil, 0, 250*time.Millisecond)
 	go s.Run(ctx)
 
-	nextRun := time.Now().Add(time.Second).UTC()
-	_, err = tbl.AddJob(context.Background(), table.Key{Path: "abc", Body: "def"}, duration.Duration{}, duration.Duration{}, time.UTC, nextRun)
+	nextRun := time.Now().UTC().Truncate(time.Second)
+	_, err = tbl.AddJob(context.Background(), table.Key{Path: "abc", Body: "def"}, duration.Duration{TS: 10}, duration.Duration{}, time.UTC, nextRun)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// First run
 	select {
 	case unix := <-rcv:
 		if expect := nextRun.Unix(); unix != expect {
 			t.Fatalf("Expected unix %d and found %d", expect, unix)
 		}
-	case <-time.After(time.Second * 2):
+	case <-time.After(time.Second * 5):
 		t.Fatal("Job never fired.")
+	}
+
+	// Retry must preserve original sched time
+	select {
+	case unix := <-rcv:
+		if expect := nextRun.Unix(); unix != expect {
+			t.Fatalf("Expected unix %d and found %d", expect, unix)
+		}
+	case <-time.After(time.Second * 5):
+		t.Fatal("Job is not retried.")
 	}
 }
