@@ -89,23 +89,13 @@ func (m *JobManager) Schedule(ctx context.Context, path, body string, opt Schedu
 // Disabling an I/P job does not cancel its current run.
 func (m *JobManager) Disable(ctx context.Context, path, body string) (*table.Job, error) {
 	log.Debugln("job is disabled:", path, body)
-	if err := m.table.DisableJob(ctx, table.Key{Path: path, Body: body}); err != nil {
-		return nil, err
-	}
-	return m.table.Get(ctx, path, body)
+	return m.table.DisableJob(ctx, table.Key{Path: path, Body: body})
 }
 
 // Enable reschedules a disabled job so that it will run again.
 func (m *JobManager) Enable(ctx context.Context, path, body string) (*table.Job, error) {
 	log.Debugln("job is enabled:", path, body)
-	j, err := m.table.Get(ctx, path, body)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.scheduler.ResumeJobSchedule(ctx, j); err != nil {
-		return nil, err
-	}
-	return m.table.Get(ctx, path, body)
+	return m.table.EnableJob(ctx, table.Key{Path: path, Body: body})
 }
 
 // Cancel deletes the job with path and body.

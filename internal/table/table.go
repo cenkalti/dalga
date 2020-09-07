@@ -14,6 +14,7 @@ import (
 	"github.com/senseyeio/duration"
 
 	"github.com/cenkalti/dalga/v2/internal/clock"
+	"github.com/cenkalti/dalga/v2/internal/retry"
 )
 
 var ErrNotExist = errors.New("job does not exist")
@@ -86,36 +87,56 @@ func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
 		"FROM " + t.name + " " +
 		"WHERE path = ? AND body = ?"
 	row := t.db.QueryRowContext(ctx, s, path, body)
-	var j Job
+	j, _, err := t.scanJob(row, false)
+	return &j, err
+}
+
+func (t *Table) getForUpdate(ctx context.Context, path, body string) (tx *sql.Tx, j Job, now time.Time, err error) {
+	tx, err = t.db.BeginTx(ctx, nil)
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err != nil && tx != nil {
+			tx.Rollback() // nolint: errcheck
+		}
+	}()
+	s := "SELECT path, body, `interval`, location, next_run, next_sched, instance_id, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP()) " +
+		"FROM " + t.name + " " +
+		"WHERE path = ? AND body = ? FOR UPDATE"
+	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC(), path, body)
+	j, now, err = t.scanJob(row, true)
+	return
+}
+
+func (t *Table) scanJob(row *sql.Row, withCurrentTime bool) (j Job, now time.Time, err error) {
 	var interval, locationName string
 	var instanceID sql.NullInt64
-	err := row.Scan(&j.Path, &j.Body, &interval, &locationName, &j.NextRun, &j.NextSched, &instanceID)
+	if withCurrentTime {
+		err = row.Scan(&j.Path, &j.Body, &interval, &locationName, &j.NextRun, &j.NextSched, &instanceID, &now)
+	} else {
+		err = row.Scan(&j.Path, &j.Body, &interval, &locationName, &j.NextRun, &j.NextSched, &instanceID)
+	}
 	if err == sql.ErrNoRows {
-		return nil, ErrNotExist
+		err = ErrNotExist
 	}
 	if err != nil {
-		return nil, err
+		return
 	}
-	if locationName == "" {
-		locationName = time.UTC.String() // Default to UTC in case it's omitted somehow in the database.
-	}
-	j.Location, err = time.LoadLocation(locationName)
+	err = j.setLocation(locationName)
 	if err != nil {
-		return nil, err
+		return
 	}
-	if j.NextRun.Valid {
-		j.NextRun.Time = j.NextRun.Time.In(j.Location)
-	}
-	j.NextSched = j.NextSched.In(j.Location)
 	j.Interval, err = duration.ParseISO8601(interval)
 	if err != nil {
-		return nil, err
+		return
 	}
 	if instanceID.Valid {
 		id := uint32(instanceID.Int64)
 		j.InstanceID = &id
 	}
-	return &j, nil
+	now = now.In(j.Location)
+	return
 }
 
 // AddJob inserts a job into the scheduler table.
@@ -152,12 +173,52 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	return job, tx.Commit()
 }
 
+func (t *Table) EnableJob(ctx context.Context, key Key) (*Job, error) {
+	tx, j, now, err := t.getForUpdate(ctx, key.Path, key.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback() // nolint: errcheck
+	if j.Enabled() {
+		// Job is already enabled.
+		return &j, nil
+	}
+	if t.FixedIntervals {
+		for j.NextSched.Before(now) {
+			j.NextSched = j.Interval.Shift(j.NextSched)
+		}
+	}
+	j.NextRun.Time = j.NextSched
+	j.NextRun.Valid = true
+	s := "UPDATE " + t.name + " " + // nolint: gosec
+		"SET next_run=?, next_sched=? " +
+		"WHERE path = ? AND body = ?"
+	_, err = tx.ExecContext(ctx, s, j.NextRun.Time.UTC(), j.NextSched.UTC(), key.Path, key.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set next run: %w", err)
+	}
+	return &j, tx.Commit()
+}
+
 // DisableJob prevents a job from running by setting next_run to NULL,
 // while preserving the value of next_sched.
-func (t *Table) DisableJob(ctx context.Context, key Key) error {
+func (t *Table) DisableJob(ctx context.Context, key Key) (*Job, error) {
+	tx, j, _, err := t.getForUpdate(ctx, key.Path, key.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback() // nolint: errcheck
+	if !j.Enabled() {
+		// Job is already disabled.
+		return &j, nil
+	}
 	s := "UPDATE " + t.name + " SET next_run=NULL WHERE path = ? AND body = ?"
-	_, err := t.db.ExecContext(ctx, s, key.Path, key.Body)
-	return err
+	_, err = tx.ExecContext(ctx, s, key.Path, key.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set next run: %w", err)
+	}
+	j.NextRun.Valid = false
+	return &j, tx.Commit()
 }
 
 // DeleteJob removes a job from scheduler table.
@@ -195,15 +256,10 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	if locationName == "" {
-		locationName = time.UTC.String() // Default to UTC in case it's omitted somehow in the database.
-	}
-	j.Location, err = time.LoadLocation(locationName)
+	err = j.setLocation(locationName)
 	if err != nil {
 		return nil, err
 	}
-	j.NextRun.Time = j.NextRun.Time.In(j.Location)
-	j.NextSched = j.NextSched.In(j.Location)
 	s = "UPDATE " + t.name + " SET instance_id=? WHERE path=? AND body=?" // nolint: gosec
 	_, err = tx.ExecContext(ctx, s, instanceID, j.Path, j.Body)
 	if err != nil {
@@ -226,60 +282,36 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 // If UpdateNextRun is called on a disabled job without doEnable, as many happen when a job has been
 // disabled during execution, next_sched will advance but next_run will remain NULL.
 // Reversely, if doEnable is true but the job has a non-NULL next_run, the method call is a no-op.
-func (t *Table) UpdateNextRun(ctx context.Context, key Key, delay duration.Duration, randFactor float64, isRetry bool, doEnable bool) error {
-	if isRetry && doEnable {
-		return errors.New("isRetry and doEnable are mutually exclusive parameters")
-	}
-	tx, err := t.db.BeginTx(ctx, nil)
+func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, retryParams *retry.Retry) error {
+	tx, j, now, err := t.getForUpdate(ctx, key.Path, key.Body)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() // nolint: errcheck
-	var locationName string
-	var now, nextSched time.Time
-	var nextRun sql.NullTime
-	s := "SELECT location, next_run, next_sched, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())" +
-		" FROM " + t.name + " WHERE path = ? AND body = ?"
-	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC(), key.Path, key.Body)
-	if err := row.Scan(&locationName, &nextRun, &nextSched, &now); err != nil {
-		return fmt.Errorf("failed to get last run of job: %w", err)
-	}
-	if nextRun.Valid && doEnable {
+	if !j.NextRun.Valid {
+		// Job is disabled.
 		return nil
 	}
-	if locationName == "" {
-		locationName = time.UTC.String() // Default to UTC in case it's omitted somehow in the database.
-	}
-	location, err := time.LoadLocation(locationName)
-	if err != nil {
-		return err
-	}
-	now = now.In(location)
-	nextSched = nextSched.In(location)
 	switch {
-	case !t.FixedIntervals && !doEnable:
-		nextSched = delay.Shift(now)
+	case retryParams != nil:
+		j.NextRun.Time = retryParams.NextRun(j.NextSched, now)
+	case t.FixedIntervals:
+		for j.NextSched.Before(now) {
+			j.NextSched = j.Interval.Shift(j.NextSched)
+		}
+		j.NextRun.Time = j.NextSched
+	case !t.FixedIntervals:
+		j.NextSched = j.Interval.Shift(now)
 		if randFactor > 0 {
-			diff := randomize(nextSched.Sub(now), randFactor)
-			nextSched = now.Add(diff)
+			diff := randomize(j.NextSched.Sub(now), randFactor)
+			j.NextSched = now.Add(diff)
 		}
-	case t.FixedIntervals && !isRetry:
-		for nextSched.Before(now) {
-			nextSched = delay.Shift(nextSched)
-		}
+		j.NextRun.Time = j.NextSched
 	}
-	switch {
-	case !nextRun.Valid && !doEnable:
-	case t.FixedIntervals && isRetry:
-		nextRun.Time = delay.Shift(now).UTC()
-	default:
-		nextRun.Time = nextSched.UTC()
-		nextRun.Valid = true
-	}
-	s = "UPDATE " + t.name + " " + // nolint: gosec
-		"SET next_run=?, next_sched=?, instance_id=NULL, location=? " +
+	s := "UPDATE " + t.name + " " + // nolint: gosec
+		"SET next_run=?, next_sched=?, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
-	_, err = tx.ExecContext(ctx, s, nextRun, nextSched.UTC(), locationName, key.Path, key.Body)
+	_, err = tx.ExecContext(ctx, s, j.NextRun.Time.UTC(), j.NextSched.UTC(), key.Path, key.Body)
 	if err != nil {
 		return fmt.Errorf("failed to set next run: %w", err)
 	}

@@ -162,7 +162,7 @@ func TestEnableScheduling(t *testing.T) {
 			success:     false,
 			disableAt:   start.Add(time.Hour + time.Second*30),
 			enableAt:    start.Add(time.Hour + time.Second*45),
-			expectRunAt: start.Add(time.Hour + time.Minute),
+			expectRunAt: start.Add(time.Hour),
 			notes:       "should have no effect",
 		},
 		{
@@ -230,6 +230,8 @@ func TestEnableScheduling(t *testing.T) {
 			config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
 			config.Jobs.FixedIntervals = test.fixed
 			config.Jobs.RetryInterval = test.retry
+			config.Jobs.RetryMaxInterval = test.retry
+			config.Jobs.RetryMultiplier = 1
 
 			d, lis, cleanup := newDalga(t, config)
 			defer cleanup()
@@ -289,7 +291,7 @@ func TestEnableScheduling(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if nextRun.After(test.expectRunAt.Add(time.Second)) || nextRun.Before(test.expectRunAt.Add(time.Second*-1)) {
+			if nextRun.After(test.expectRunAt.Add(time.Second)) || nextRun.Before(test.expectRunAt.Add(-time.Second)) {
 				t.Fatalf("run at '%s' too different from expected value '%s'", nextRun.Format(time.RFC3339), test.expectRunAt.Format(time.RFC3339))
 			}
 

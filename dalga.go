@@ -11,6 +11,7 @@ import (
 	"github.com/cenkalti/dalga/v2/internal/clock"
 	"github.com/cenkalti/dalga/v2/internal/instance"
 	"github.com/cenkalti/dalga/v2/internal/jobmanager"
+	"github.com/cenkalti/dalga/v2/internal/retry"
 	"github.com/cenkalti/dalga/v2/internal/scheduler"
 	"github.com/cenkalti/dalga/v2/internal/server"
 	"github.com/cenkalti/dalga/v2/internal/table"
@@ -54,7 +55,12 @@ func New(config Config) (*Dalga, error) {
 	t.SkipLocked = config.MySQL.SkipLocked
 	t.FixedIntervals = config.Jobs.FixedIntervals
 	i := instance.New(t)
-	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, time.Duration(config.Jobs.RetryInterval)*time.Second, config.Jobs.RandomizationFactor, time.Millisecond*time.Duration(config.Jobs.ScanFrequency))
+	r := &retry.Retry{
+		Interval:    time.Duration(config.Jobs.RetryInterval) * time.Second,
+		MaxInterval: time.Duration(config.Jobs.RetryMaxInterval) * time.Second,
+		Multiplier:  config.Jobs.RetryMultiplier,
+	}
+	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, r, config.Jobs.RandomizationFactor, time.Millisecond*time.Duration(config.Jobs.ScanFrequency))
 	j := jobmanager.New(t, s)
 	srv := server.New(j, t, i.ID(), lis, 10*time.Second)
 	return &Dalga{

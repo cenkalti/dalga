@@ -92,11 +92,11 @@ func TestAddJob(t *testing.T) {
 	})
 
 	t.Run("Disable hides job", func(t *testing.T) {
-		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, false); err != nil {
+		if err := table.UpdateNextRun(ctx, j.Key, 0, nil); err != nil {
 			t.Fatal(err)
 		}
 		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
-		if err := table.DisableJob(ctx, j.Key); err != nil {
+		if _, err := table.DisableJob(ctx, j.Key); err != nil {
 			t.Fatal(err)
 		}
 		_, err := table.Front(ctx, instanceID)
@@ -116,7 +116,7 @@ func TestAddJob(t *testing.T) {
 	})
 
 	t.Run("Generic rescheduling won't re-enable a job", func(t *testing.T) {
-		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, false); err != nil {
+		if err := table.UpdateNextRun(ctx, j.Key, 0, nil); err != nil {
 			t.Fatal(err)
 		}
 		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
@@ -127,7 +127,7 @@ func TestAddJob(t *testing.T) {
 	})
 
 	t.Run("Can re-enable", func(t *testing.T) {
-		if err := table.UpdateNextRun(ctx, j.Key, j.Interval, 0, false, true); err != nil {
+		if _, err := table.EnableJob(ctx, j.Key); err != nil {
 			t.Fatal(err)
 		}
 		_, err = table.Front(ctx, instanceID)

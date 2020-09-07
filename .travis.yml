@@ -13,7 +13,7 @@ before_script:
   - sudo mysql_upgrade
   - mysql --version
   - mysql -e 'create database test'
-script: go test -race -v
+script: go test -race -v ./...
 deploy:
 - provider: script
   script: curl -sL https://git.io/goreleaser | bash
