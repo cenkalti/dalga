@@ -171,7 +171,7 @@ func TestEnableScheduling(t *testing.T) {
 			success:     false,
 			disableAt:   start.Add(time.Hour + time.Second*30),
 			enableAt:    start.Add(time.Hour + time.Second*45),
-			expectRunAt: start.Add(time.Hour),
+			expectRunAt: start.Add(time.Hour + time.Minute),
 			notes:       "should have no effect",
 		},
 		{

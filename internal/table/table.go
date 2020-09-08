@@ -218,8 +218,13 @@ func (t *Table) DisableJob(ctx context.Context, key Key) (*Job, error) {
 		// Job is already disabled.
 		return &j, nil
 	}
-	s := "UPDATE " + t.name + " SET next_run=NULL WHERE path = ? AND body = ?"
-	_, err = tx.ExecContext(ctx, s, key.Path, key.Body)
+	if !t.FixedIntervals {
+		// Disabling then enabling the job has a side effect of resetting exponential backoff to initial value.
+		// This is not a problem if RetryMultiplier=1.
+		j.NextSched = j.NextRun.Time
+	}
+	s := "UPDATE " + t.name + " SET next_run=NULL, next_sched=? WHERE path = ? AND body = ?"
+	_, err = tx.ExecContext(ctx, s, j.NextSched, key.Path, key.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set next run: %w", err)
 	}
