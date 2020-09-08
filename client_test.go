@@ -104,6 +104,15 @@ func TestClient(t *testing.T) {
 
 }
 
+func printJob(t *testing.T, j *Job) {
+	t.Helper()
+	var nextRun string
+	if j.NextRun != nil {
+		nextRun = *j.NextRun
+	}
+	t.Logf("Job: interval=%s, next_run=%s, next_sched=%s", j.Interval, nextRun, j.NextSched)
+}
+
 // TestEnableScheduling ensures that re-enabled jobs schedule their next run correctly.
 func TestEnableScheduling(t *testing.T) {
 
@@ -236,6 +245,7 @@ func TestEnableScheduling(t *testing.T) {
 			d, lis, cleanup := newDalga(t, config)
 			defer cleanup()
 
+			t.Log("setting clock to:", test.start.String())
 			clk := d.UseClock(test.start)
 
 			runCtx, cancel := context.WithCancel(context.Background())
@@ -248,6 +258,7 @@ func TestEnableScheduling(t *testing.T) {
 			ctx := context.Background()
 			clnt := NewClient("http://" + lis.Addr())
 
+			t.Log("scheduling test job")
 			j, err := clnt.Schedule(ctx, "abc", test.name,
 				WithFirstRun(test.firstRun),
 				MustWithIntervalString(test.interval),
@@ -256,7 +267,9 @@ func TestEnableScheduling(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			printJob(t, j)
 
+			t.Log("setting clock to:", test.firstRun.Add(time.Second))
 			clk.Set(test.firstRun.Add(time.Second))
 
 			select {
@@ -269,20 +282,32 @@ func TestEnableScheduling(t *testing.T) {
 			}
 			<-time.After(time.Millisecond * 100)
 
+			j, err = clnt.Get(ctx, j.Path, j.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			printJob(t, j)
+
+			t.Log("setting clock to:", test.disableAt.String())
 			clk.Set(test.disableAt)
+			t.Log("disabling test job")
 			j, err = clnt.Disable(ctx, "abc", test.name)
 			if err != nil {
 				t.Fatal(err)
 			}
+			printJob(t, j)
 			if j.NextRun != nil {
 				t.Fatalf("unexpected next run: %s", *j.NextRun)
 			}
 
+			t.Log("setting clock to:", test.enableAt.String())
 			clk.Set(test.enableAt)
+			t.Log("disabling test job")
 			j, err = clnt.Enable(ctx, "abc", test.name)
 			if err != nil {
 				t.Fatal(err)
 			}
+			printJob(t, j)
 
 			if j.NextRun == nil {
 				t.Fatalf("unexpected j.NextRun: %v", j.NextRun)
