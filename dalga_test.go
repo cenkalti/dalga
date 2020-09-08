@@ -73,13 +73,13 @@ func TestSchedule(t *testing.T) {
 	if resp.StatusCode != 201 {
 		t.Fatalf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
 	}
-	println("PUT response:", buf.String())
+	t.Log("PUT response:", buf.String())
 
-	println("scheduled job")
+	t.Log("scheduled job")
 
 	select {
 	case body := <-called:
-		println("endpoint is called")
+		t.Log("endpoint is called")
 		if body != testBody {
 			t.Fatalf("Invalid body: %s", body)
 		}
@@ -103,7 +103,7 @@ func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
 	if err != nil {
 		t.Fatalf("cannot connect to mysql: %s", err.Error())
 	}
-	println("connected to db")
+	t.Log("connected to db")
 
 	d, err := New(config)
 	if err != nil {
@@ -117,13 +117,13 @@ func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	println("dropped table")
+	t.Log("dropped table")
 
 	err = d.CreateTable()
 	if err != nil {
 		t.Fatal(err)
 	}
-	println("created table")
+	t.Log("created table")
 	cleanups = append(cleanups, func() {
 		d.table.Drop(context.Background())
 	})
