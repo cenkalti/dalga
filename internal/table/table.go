@@ -173,6 +173,12 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	return job, tx.Commit()
 }
 
+// EnableJob marks the job as enabled by setting next_run to next_sched.
+//
+// If next_sched is in the past, the job will then be picked up for execution immediately.
+//
+// With FixedIntervals enabled, next_sched is advanced by the value of interval
+// until it's in the future and next_run matches it.
 func (t *Table) EnableJob(ctx context.Context, key Key) (*Job, error) {
 	tx, j, now, err := t.getForUpdate(ctx, key.Path, key.Body)
 	if err != nil {
@@ -271,17 +277,14 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 // UpdateNextRun sets next_run and next_sched, and unclaims it from an instance.
 //
 // With default settings, next_sched and next_run are set to now+delay.
-// This is also the behavior when scheduling a retry.
-// When enabling a job, next_run is set to next_sched; if next_sched is in the past,
-// the job will then be picked up for execution immediately.
 //
-// With FixedIntervals enabled, next_sched is advanced by the value of delay until it's in the future,
-// and next_run matches it. This is also the behavior when enabling a job.
-// If this is a retry, next_run is set to now+duration and next_sched is not adjusted.
+// With FixedIntervals enabled, next_sched is advanced by the value of interval
+// until it's in the future and next_run matches it.
 //
-// If UpdateNextRun is called on a disabled job without doEnable, as many happen when a job has been
-// disabled during execution, next_sched will advance but next_run will remain NULL.
-// Reversely, if doEnable is true but the job has a non-NULL next_run, the method call is a no-op.
+// If this is a retry, next_run is set to a value based on retry paramters and next_sched is not adjusted.
+//
+// If UpdateNextRun is called on a disabled job, as many happen when a job has
+// been disabled during execution, next_sched will advance but next_run will remain NULL.
 func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, retryParams *retry.Retry) error {
 	tx, j, now, err := t.getForUpdate(ctx, key.Path, key.Body)
 	if err != nil {
