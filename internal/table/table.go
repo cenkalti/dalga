@@ -298,9 +298,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, 
 	defer tx.Rollback() // nolint: errcheck
 	switch {
 	case retryParams != nil:
-		if j.NextRun.Valid {
-			j.NextRun.Time = retryParams.NextRun(j.NextSched, now)
-		}
+		j.NextRun.Time = retryParams.NextRun(j.NextSched, now)
 	case t.FixedIntervals:
 		for j.NextSched.Before(now) {
 			j.NextSched = j.Interval.Shift(j.NextSched)
@@ -317,6 +315,9 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, 
 	s := "UPDATE " + t.name + " " + // nolint: gosec
 		"SET next_run=?, next_sched=?, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
+	// Note that we are passing next_run as sql.NullTime value.
+	// If next_run is already NULL (j.NextRun.Valid == false), it is not going to be updated.
+	// This may happen when the job gets disabled while it is running.
 	_, err = tx.ExecContext(ctx, s, j.NextRun, j.NextSched.UTC(), key.Path, key.Body)
 	if err != nil {
 		return fmt.Errorf("failed to set next run: %w", err)
