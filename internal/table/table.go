@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"strconv"
 	"time"
@@ -140,7 +139,6 @@ func (t *Table) scanJob(row *sql.Row, withCurrentTime bool) (j Job, now time.Tim
 
 // AddJob inserts a job into the scheduler table.
 func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Duration, location *time.Location, nextRun time.Time) (*Job, error) {
-	log.Printf("Adding job in location: %v", location)
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
