@@ -14,7 +14,7 @@ Dalga is a job scheduler.
 Install
 -------
 
-    $ go get github.com/cenkalti/dalga/cmd/dalga
+    $ go get github.com/cenkalti/dalga/v2/cmd/dalga
 
 Usage
 -----
