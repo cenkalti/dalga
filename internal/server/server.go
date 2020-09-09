@@ -12,9 +12,9 @@ import (
 	"github.com/bmizerany/pat"
 	"github.com/senseyeio/duration"
 
-	"github.com/cenkalti/dalga/v2/internal/jobmanager"
-	"github.com/cenkalti/dalga/v2/internal/log"
-	"github.com/cenkalti/dalga/v2/internal/table"
+	"github.com/cenkalti/dalga/v3/internal/jobmanager"
+	"github.com/cenkalti/dalga/v3/internal/log"
+	"github.com/cenkalti/dalga/v3/internal/table"
 )
 
 type Server struct {

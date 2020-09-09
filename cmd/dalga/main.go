@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cenkalti/dalga/v2"
-	"github.com/cenkalti/dalga/v2/internal/log"
+	"github.com/cenkalti/dalga/v3"
+	"github.com/cenkalti/dalga/v3/internal/log"
 )
 
 var (

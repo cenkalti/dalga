@@ -13,8 +13,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/senseyeio/duration"
 
-	"github.com/cenkalti/dalga/v2/internal/clock"
-	"github.com/cenkalti/dalga/v2/internal/retry"
+	"github.com/cenkalti/dalga/v3/internal/clock"
+	"github.com/cenkalti/dalga/v3/internal/retry"
 )
 
 var ErrNotExist = errors.New("job does not exist")

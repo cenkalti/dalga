@@ -12,9 +12,9 @@ import (
 
 	"github.com/senseyeio/duration"
 
-	"github.com/cenkalti/dalga/v2/internal/instance"
-	"github.com/cenkalti/dalga/v2/internal/retry"
-	"github.com/cenkalti/dalga/v2/internal/table"
+	"github.com/cenkalti/dalga/v3/internal/instance"
+	"github.com/cenkalti/dalga/v3/internal/retry"
+	"github.com/cenkalti/dalga/v3/internal/table"
 )
 
 var dsn = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true", "root", "", "127.0.0.1", 3306, "test")

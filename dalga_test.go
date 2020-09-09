@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/dalga/v2/internal/log"
+	"github.com/cenkalti/dalga/v3/internal/log"
 )
 
 func init() {

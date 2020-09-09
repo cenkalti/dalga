@@ -12,9 +12,9 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 
-	"github.com/cenkalti/dalga/v2/internal/log"
-	"github.com/cenkalti/dalga/v2/internal/retry"
-	"github.com/cenkalti/dalga/v2/internal/table"
+	"github.com/cenkalti/dalga/v3/internal/log"
+	"github.com/cenkalti/dalga/v3/internal/retry"
+	"github.com/cenkalti/dalga/v3/internal/table"
 )
 
 type Scheduler struct {
