@@ -49,6 +49,7 @@ type jobsConfig struct {
 	RetryInterval       int
 	RetryMultiplier     float64
 	RetryMaxInterval    int
+	RetryStopAfter      int
 	FixedIntervals      bool
 	ScanFrequency       int
 }

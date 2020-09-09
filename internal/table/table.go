@@ -298,6 +298,9 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, 
 	switch {
 	case retryParams != nil:
 		j.NextRun.Time = retryParams.NextRun(j.NextSched, now)
+		if j.NextRun.Time.IsZero() {
+			j.NextRun.Valid = false
+		}
 	case t.FixedIntervals:
 		for j.NextSched.Before(now) {
 			j.NextSched = j.Interval.Shift(j.NextSched)
