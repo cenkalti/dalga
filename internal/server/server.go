@@ -163,7 +163,6 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request, path, bo
 		}
 	}
 
-	opt.Location = time.UTC
 	locationParam := r.FormValue("location")
 	if locationParam != "" {
 		opt.Location, err = time.LoadLocation(locationParam)

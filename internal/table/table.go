@@ -139,6 +139,9 @@ func (t *Table) scanJob(row *sql.Row, withCurrentTime bool) (j Job, now time.Tim
 
 // AddJob inserts a job into the scheduler table.
 func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Duration, location *time.Location, nextRun time.Time) (*Job, error) {
+	if location == nil {
+		location = time.UTC
+	}
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -156,7 +159,11 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	s := "REPLACE INTO " + t.name +
 		"(path, body, `interval`, location, next_run, next_sched) " +
 		"VALUES (?, ?, ?, ?, ?, ?)"
-	_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), location.String(), nextRun.UTC(), nextRun.UTC())
+	var locationName string
+	if location != time.UTC {
+		locationName = location.String()
+	}
+	_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), locationName, nextRun.UTC(), nextRun.UTC())
 	if err != nil {
 		return nil, err
 	}

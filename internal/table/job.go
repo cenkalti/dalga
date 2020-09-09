@@ -73,13 +73,13 @@ func (j *Job) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (j *Job) setLocation(locationName string) error {
-	if locationName == "" {
-		locationName = time.UTC.String() // Default to UTC in case it's omitted somehow in the database.
-	}
-	loc, err := time.LoadLocation(locationName)
-	if err != nil {
-		return err
+func (j *Job) setLocation(locationName string) (err error) {
+	loc := time.UTC // Default to UTC in case it's omitted somehow in the database.
+	if locationName != "" {
+		loc, err = time.LoadLocation(locationName)
+		if err != nil {
+			return err
+		}
 	}
 	j.Location = loc
 	j.NextSched = j.NextSched.In(loc)
