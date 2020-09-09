@@ -152,7 +152,11 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request, path, bo
 
 	intervalParam := r.FormValue("interval")
 	if intervalParam != "" {
-		opt.Interval, err = duration.ParseISO8601(intervalParam)
+		if intervalParam[0] == 'P' {
+			opt.Interval, err = duration.ParseISO8601(intervalParam)
+		} else {
+			opt.Interval.TS, err = strconv.Atoi(intervalParam)
+		}
 		if err != nil {
 			http.Error(w, "cannot parse interval", http.StatusBadRequest)
 			return
