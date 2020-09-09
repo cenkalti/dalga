@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
@@ -25,15 +24,9 @@ var dsn = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true",
 // Retries of a particular execution will preserve the timestamp of the
 // original execution, which receivers can use to ensure idempotency.
 func TestSchedHeader(t *testing.T) {
-	rcv := make(chan int64)
+	rcv := make(chan string)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hdr := r.Header.Get("dalga-sched")
-		unix, err := strconv.ParseInt(hdr, 10, 64)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		rcv <- unix
+		rcv <- r.Header.Get("dalga-sched")
 		http.Error(w, "job failed", 500)
 	}))
 
@@ -75,11 +68,13 @@ func TestSchedHeader(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	expect := nextRun.Format(time.RFC3339)
+
 	// First run
 	select {
-	case unix := <-rcv:
-		if expect := nextRun.Unix(); unix != expect {
-			t.Fatalf("Expected unix %d and found %d", expect, unix)
+	case hdr := <-rcv:
+		if hdr != expect {
+			t.Fatalf("Expected header %s and found %s", expect, hdr)
 		}
 	case <-time.After(time.Second * 5):
 		t.Fatal("Job never fired.")
@@ -87,9 +82,9 @@ func TestSchedHeader(t *testing.T) {
 
 	// Retry must preserve original sched time
 	select {
-	case unix := <-rcv:
-		if expect := nextRun.Unix(); unix != expect {
-			t.Fatalf("Expected unix %d and found %d", expect, unix)
+	case hdr := <-rcv:
+		if hdr != expect {
+			t.Fatalf("Expected header %s and found %s", expect, hdr)
 		}
 	case <-time.After(time.Second * 5):
 		t.Fatal("Job is not retried.")
