@@ -10,11 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
-	"github.com/senseyeio/duration"
-
 	"github.com/cenkalti/dalga/v3/internal/clock"
 	"github.com/cenkalti/dalga/v3/internal/retry"
+	"github.com/go-sql-driver/mysql"
+	"github.com/senseyeio/duration"
 )
 
 var ErrNotExist = errors.New("job does not exist")
@@ -156,7 +155,7 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 		now = now.In(location)
 		nextRun = delay.Shift(now)
 	}
-	s := "REPLACE INTO " + t.name + // nolint: gosec
+	s := "REPLACE INTO " + t.name +
 		"(path, body, `interval`, location, next_run, next_sched) " +
 		"VALUES (?, ?, ?, ?, ?, ?)"
 	_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), location.String(), nextRun.UTC(), nextRun.UTC())
@@ -196,7 +195,7 @@ func (t *Table) EnableJob(ctx context.Context, key Key) (*Job, error) {
 	}
 	j.NextRun.Time = j.NextSched
 	j.NextRun.Valid = true
-	s := "UPDATE " + t.name + " " + // nolint: gosec
+	s := "UPDATE " + t.name + " " +
 		"SET next_run=?, next_sched=? " +
 		"WHERE path = ? AND body = ?"
 	_, err = tx.ExecContext(ctx, s, j.NextRun.Time.UTC(), j.NextSched.UTC(), key.Path, key.Body)
@@ -234,7 +233,7 @@ func (t *Table) DisableJob(ctx context.Context, key Key) (*Job, error) {
 
 // DeleteJob removes a job from scheduler table.
 func (t *Table) DeleteJob(ctx context.Context, key Key) error {
-	s := "DELETE FROM " + t.name + " WHERE path=? AND body=?" // nolint: gosec
+	s := "DELETE FROM " + t.name + " WHERE path=? AND body=?"
 	_, err := t.db.ExecContext(ctx, s, key.Path, key.Body)
 	return err
 }
@@ -271,7 +270,7 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	s = "UPDATE " + t.name + " SET instance_id=? WHERE path=? AND body=?" // nolint: gosec
+	s = "UPDATE " + t.name + " SET instance_id=? WHERE path=? AND body=?"
 	_, err = tx.ExecContext(ctx, s, instanceID, j.Path, j.Body)
 	if err != nil {
 		return nil, err
@@ -286,7 +285,7 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 // With FixedIntervals enabled, next_sched is advanced by the value of interval
 // until it's in the future and next_run matches it.
 //
-// If this is a retry, next_run is set to a value based on retry paramters and next_sched is not adjusted.
+// If this is a retry, next_run is set to a value based on retry parameters and next_sched is not adjusted.
 //
 // If UpdateNextRun is called on a disabled job, as many happen when a job has
 // been disabled during execution, next_sched will advance but next_run will remain NULL.
@@ -312,7 +311,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, 
 		}
 		j.NextRun.Time = j.NextSched
 	}
-	s := "UPDATE " + t.name + " " + // nolint: gosec
+	s := "UPDATE " + t.name + " " +
 		"SET next_run=?, next_sched=?, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
 	// Note that we are passing next_run as sql.NullTime value.
@@ -327,7 +326,7 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, 
 
 // UpdateInstanceID claims a job for an instance.
 func (t *Table) UpdateInstanceID(ctx context.Context, key Key, instanceID uint32) error {
-	s := "UPDATE " + t.name + " " + // nolint: gosec
+	s := "UPDATE " + t.name + " " +
 		"SET instance_id=? " +
 		"WHERE path = ? AND body = ?"
 	_, err := t.db.ExecContext(ctx, s, instanceID, key.Path, key.Body)
@@ -336,14 +335,14 @@ func (t *Table) UpdateInstanceID(ctx context.Context, key Key, instanceID uint32
 
 // Count returns the count of scheduled jobs in the table.
 func (t *Table) Count(ctx context.Context) (int64, error) {
-	s := "SELECT COUNT(*) FROM " + t.name // nolint: gosec
+	s := "SELECT COUNT(*) FROM " + t.name
 	var count int64
 	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
 }
 
 // Pending returns the count of pending jobs in the table.
 func (t *Table) Pending(ctx context.Context) (int64, error) {
-	s := "SELECT COUNT(*) FROM " + t.name + " " + // nolint: gosec
+	s := "SELECT COUNT(*) FROM " + t.name + " " +
 		"WHERE next_run < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())"
 	var count int64
 	return count, t.db.QueryRowContext(ctx, s, t.Clk.NowUTC()).Scan(&count)
@@ -351,7 +350,7 @@ func (t *Table) Pending(ctx context.Context) (int64, error) {
 
 // Lag returns the number of seconds passed from the execution time of the oldest pending job.
 func (t *Table) Lag(ctx context.Context) (int64, error) {
-	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())) FROM " + t.name + " " + // nolint: gosec
+	s := "SELECT TIMESTAMPDIFF(SECOND, next_run, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())) FROM " + t.name + " " +
 		"WHERE next_run < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP()) AND instance_id is NULL " +
 		"ORDER BY next_run ASC LIMIT 1"
 	now := t.Clk.NowUTC()
@@ -365,7 +364,7 @@ func (t *Table) Lag(ctx context.Context) (int64, error) {
 
 // Running returns the count of total running jobs in the table.
 func (t *Table) Running(ctx context.Context) (int64, error) {
-	s := "SELECT COUNT(*) FROM " + t.name + " " + // nolint: gosec
+	s := "SELECT COUNT(*) FROM " + t.name + " " +
 		"WHERE instance_id IS NOT NULL"
 	var count int64
 	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
@@ -373,7 +372,7 @@ func (t *Table) Running(ctx context.Context) (int64, error) {
 
 // Instances returns the count of running Dalga instances.
 func (t *Table) Instances(ctx context.Context) (int64, error) {
-	s := "SELECT COUNT(*) FROM " + t.name + "_instances " // nolint: gosec
+	s := "SELECT COUNT(*) FROM " + t.name + "_instances "
 	var count int64
 	return count, t.db.QueryRowContext(ctx, s).Scan(&count)
 }
@@ -390,11 +389,11 @@ func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
 	}
 	defer tx.Rollback() // nolint: errcheck
 	now := t.Clk.NowUTC()
-	s1 := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())" // nolint: gosec
+	s1 := "INSERT INTO " + t.name + "_instances(id, updated_at) VALUES (" + strconv.FormatUint(uint64(id), 10) + ",IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP())) ON DUPLICATE KEY UPDATE updated_at=IFNULL(?, UTC_TIMESTAMP())"
 	if _, err = tx.ExecContext(ctx, s1, now, now); err != nil {
 		return err
 	}
-	s2 := "DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP) - INTERVAL 1 MINUTE" // nolint: gosec
+	s2 := "DELETE FROM " + t.name + "_instances WHERE updated_at < IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP) - INTERVAL 1 MINUTE"
 	if _, err = tx.ExecContext(ctx, s2, now); err != nil {
 		return err
 	}
@@ -403,12 +402,12 @@ func (t *Table) UpdateInstance(ctx context.Context, id uint32) error {
 
 // DeleteInstance removes an entry from the list of active instances.
 func (t *Table) DeleteInstance(ctx context.Context, id uint32) error {
-	s := "DELETE FROM " + t.name + "_instances WHERE id=?" // nolint: gosec
+	s := "DELETE FROM " + t.name + "_instances WHERE id=?"
 	_, err := t.db.ExecContext(ctx, s, id)
 	return err
 }
 
 func randomize(d time.Duration, f float64) time.Duration {
 	delta := time.Duration(f * float64(d))
-	return d - delta + time.Duration(float64(2*delta)*rand.Float64())
+	return d - delta + time.Duration(float64(2*delta)*rand.Float64()) // nolint: gosec
 }

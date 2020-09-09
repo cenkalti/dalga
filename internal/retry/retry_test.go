@@ -1,9 +1,13 @@
-package retry
+package retry_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/cenkalti/dalga/v3/internal/retry"
 )
+
+type Retry = retry.Retry
 
 func t0(sec float64) time.Time {
 	const start = "2000-01-01T00:00:00Z"
@@ -64,5 +68,4 @@ func TestNextRun(t *testing.T) {
 			t.FailNow()
 		}
 	}
-
 }

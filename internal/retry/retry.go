@@ -12,7 +12,7 @@ type Retry struct {
 func (r *Retry) NextRun(sched, now time.Time) time.Time {
 	passed := now.Sub(sched)
 	periods := float64(passed) / float64(r.Interval)
-	delay := float64(r.Multiplier-1)*periods + 1
+	delay := (r.Multiplier-1)*periods + 1
 	interval := time.Duration(delay * float64(r.Interval))
 	if interval > r.MaxInterval {
 		interval = r.MaxInterval

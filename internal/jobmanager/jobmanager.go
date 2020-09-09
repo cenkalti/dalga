@@ -5,11 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/senseyeio/duration"
-
 	"github.com/cenkalti/dalga/v3/internal/log"
 	"github.com/cenkalti/dalga/v3/internal/scheduler"
 	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/senseyeio/duration"
 )
 
 type JobManager struct {

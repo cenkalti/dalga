@@ -17,7 +17,7 @@ type Instance struct {
 
 func New(t *table.Table) *Instance {
 	s := rand.NewSource(time.Now().UnixNano())
-	r := rand.New(s)
+	r := rand.New(s) // nolint: gosec
 	id := r.Uint32()
 	return &Instance{
 		id:    id,

@@ -1,4 +1,4 @@
-package scheduler
+package scheduler_test
 
 import (
 	"context"
@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/senseyeio/duration"
-
 	"github.com/cenkalti/dalga/v3/internal/instance"
 	"github.com/cenkalti/dalga/v3/internal/retry"
+	"github.com/cenkalti/dalga/v3/internal/scheduler"
 	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/senseyeio/duration"
 )
 
 var dsn = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true", "root", "", "127.0.0.1", 3306, "test")
@@ -50,7 +50,7 @@ func TestSchedHeader(t *testing.T) {
 	if err := tbl.Create(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	defer tbl.Drop(context.Background()) // nolint: errcheck
+	defer tbl.Drop(context.Background())
 
 	r := &retry.Retry{
 		Interval:    time.Second,
@@ -58,7 +58,7 @@ func TestSchedHeader(t *testing.T) {
 		Multiplier:  1,
 	}
 	i := instance.New(tbl)
-	s := New(tbl, i.ID(), "http://"+srv.Listener.Addr().String()+"/", 4*time.Second, r, 0, 250*time.Millisecond)
+	s := scheduler.New(tbl, i.ID(), "http://"+srv.Listener.Addr().String()+"/", 4*time.Second, r, 0, 250*time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {

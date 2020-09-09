@@ -1,4 +1,4 @@
-package table
+package table_test
 
 import (
 	"context"
@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/senseyeio/duration"
-
 	"github.com/cenkalti/dalga/v3/internal/clock"
+	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/senseyeio/duration"
 )
 
 var dsn = "root:@tcp(127.0.0.1:3306)/test?parseTime=true&multiStatements=true"
@@ -29,18 +29,18 @@ func TestAddJob(t *testing.T) {
 	now := time.Date(2020, time.August, 19, 11, 46, 0, 0, time.Local)
 	firstRun := now.Add(time.Minute * 30)
 
-	table := New(db, "test_jobs")
-	if err := table.Drop(ctx); err != nil {
+	tbl := table.New(db, "test_jobs")
+	if err := tbl.Drop(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := table.Create(ctx); err != nil {
+	if err := tbl.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	table.SkipLocked = false
-	table.FixedIntervals = true
+	tbl.SkipLocked = false
+	tbl.FixedIntervals = true
 
-	table.Clk = clock.New(now)
-	j, err := table.AddJob(ctx, Key{
+	tbl.Clk = clock.New(now)
+	j, err := tbl.AddJob(ctx, table.Key{
 		Path: "abc",
 		Body: "def",
 	}, mustDuration("PT60M"), mustDuration("PT30M"), time.Local, time.Time{})
@@ -57,17 +57,17 @@ func TestAddJob(t *testing.T) {
 	})
 
 	var instanceID uint32 = 123456
-	if err := table.UpdateInstance(ctx, instanceID); err != nil {
+	if err := tbl.UpdateInstance(ctx, instanceID); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = table.Front(ctx, instanceID)
+	_, err = tbl.Front(ctx, instanceID)
 	if err != sql.ErrNoRows {
 		t.Fatalf("unexpected error: %s", err.Error())
 	}
 
 	t.Run("Get returns timezoned job", func(t *testing.T) {
-		j, err = table.Get(ctx, "abc", "def")
+		j, err = tbl.Get(ctx, "abc", "def")
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err.Error())
 		}
@@ -76,9 +76,9 @@ func TestAddJob(t *testing.T) {
 		}
 	})
 
-	table.Clk.Add(time.Minute * 31)
+	tbl.Clk.Add(time.Minute * 31)
 
-	j, err = table.Front(ctx, instanceID)
+	j, err = tbl.Front(ctx, instanceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,21 +92,21 @@ func TestAddJob(t *testing.T) {
 	})
 
 	t.Run("Disable hides job", func(t *testing.T) {
-		if err := table.UpdateNextRun(ctx, j.Key, 0, nil); err != nil {
+		if err := tbl.UpdateNextRun(ctx, j.Key, 0, nil); err != nil {
 			t.Fatal(err)
 		}
-		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
-		if _, err := table.DisableJob(ctx, j.Key); err != nil {
+		tbl.Clk.Set(j.Interval.Shift(tbl.Clk.Get()).Add(time.Minute))
+		if _, err := tbl.DisableJob(ctx, j.Key); err != nil {
 			t.Fatal(err)
 		}
-		_, err := table.Front(ctx, instanceID)
+		_, err := tbl.Front(ctx, instanceID)
 		if err != sql.ErrNoRows {
 			t.Fatalf("unexpected error: %s", err.Error())
 		}
 	})
 
 	t.Run("Disabled jobs have no nextRun", func(t *testing.T) {
-		j, err := table.Get(ctx, j.Key.Path, j.Key.Body)
+		j, err := tbl.Get(ctx, j.Key.Path, j.Key.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -116,26 +116,26 @@ func TestAddJob(t *testing.T) {
 	})
 
 	t.Run("Generic rescheduling won't re-enable a job", func(t *testing.T) {
-		if err := table.UpdateNextRun(ctx, j.Key, 0, nil); err != nil {
+		if err := tbl.UpdateNextRun(ctx, j.Key, 0, nil); err != nil {
 			t.Fatal(err)
 		}
-		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
-		_, err = table.Front(ctx, instanceID)
+		tbl.Clk.Set(j.Interval.Shift(tbl.Clk.Get()).Add(time.Minute))
+		_, err = tbl.Front(ctx, instanceID)
 		if err != sql.ErrNoRows {
 			t.Fatalf("unexpected error: %s", err.Error())
 		}
 	})
 
 	t.Run("Can re-enable", func(t *testing.T) {
-		if _, err := table.EnableJob(ctx, j.Key); err != nil {
+		if _, err := tbl.EnableJob(ctx, j.Key); err != nil {
 			t.Fatal(err)
 		}
-		_, err = table.Front(ctx, instanceID)
+		_, err = tbl.Front(ctx, instanceID)
 		if err != sql.ErrNoRows {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		table.Clk.Set(j.Interval.Shift(table.Clk.Get()).Add(time.Minute))
-		j, err = table.Front(ctx, instanceID)
+		tbl.Clk.Set(j.Interval.Shift(tbl.Clk.Get()).Add(time.Minute))
+		j, err = tbl.Front(ctx, instanceID)
 		if err != nil {
 			t.Fatal(err)
 		}

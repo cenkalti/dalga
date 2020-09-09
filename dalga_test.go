@@ -1,4 +1,4 @@
-package dalga
+package dalga // nolint: testpackage
 
 import (
 	"bytes"
@@ -94,10 +94,7 @@ func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
-	var cleanups []func()
-	cleanups = append(cleanups, func() {
-		db.Close()
-	})
+	defer db.Close()
 
 	err = db.Ping()
 	if err != nil {
@@ -109,9 +106,6 @@ func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cleanups = append(cleanups, func() {
-		d.Close()
-	})
 
 	err = d.table.Drop(context.Background())
 	if err != nil {
@@ -124,13 +118,9 @@ func newDalga(t *testing.T, config Config) (*Dalga, listenConfig, func()) {
 		t.Fatal(err)
 	}
 	t.Log("created table")
-	cleanups = append(cleanups, func() {
-		d.table.Drop(context.Background())
-	})
 
 	return d, config.Listen, func() {
-		for _, fn := range cleanups {
-			fn()
-		}
+		d.Close()
+		_ = d.table.Drop(context.Background())
 	}
 }

@@ -1,4 +1,4 @@
-package dalga
+package dalga // nolint: testpackage
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 
 // TestClient performs basic functionality tests.
 func TestClient(t *testing.T) {
-
 	c := make(chan string)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var buf bytes.Buffer
@@ -19,7 +18,7 @@ func TestClient(t *testing.T) {
 		defer r.Body.Close()
 
 		c <- buf.String()
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	}))
 	defer srv.Close()
 
@@ -101,7 +100,6 @@ func TestClient(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-
 }
 
 func printJob(t *testing.T, j *Job) {
@@ -115,7 +113,6 @@ func printJob(t *testing.T, j *Job) {
 
 // TestEnableScheduling ensures that re-enabled jobs schedule their next run correctly.
 func TestEnableScheduling(t *testing.T) {
-
 	loc, err := time.LoadLocation("America/Los_Angeles")
 	if err != nil {
 		t.Fatal(err)
@@ -221,6 +218,7 @@ func TestEnableScheduling(t *testing.T) {
 	config.MySQL.Table = "test_enable_scheduling"
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			c := make(chan string)
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -230,7 +228,7 @@ func TestEnableScheduling(t *testing.T) {
 
 				c <- buf.String()
 				if test.success {
-					w.Write([]byte("OK"))
+					_, _ = w.Write([]byte("OK"))
 				} else {
 					http.Error(w, "failed", 400)
 				}
@@ -319,23 +317,20 @@ func TestEnableScheduling(t *testing.T) {
 			if nextRun.After(test.expectRunAt.Add(time.Second)) || nextRun.Before(test.expectRunAt.Add(-time.Second)) {
 				t.Fatalf("run at '%s' too different from expected value '%s'", nextRun.Format(time.RFC3339), test.expectRunAt.Format(time.RFC3339))
 			}
-
 		})
 	}
-
 }
 
 // TestDisableRunningJob ensures that if a job is disabled after
 // it starts executing, the rescheduling action that occurs when
 // execution finishes will not inadvertently re-enable the job.
 func TestDisableRunningJob(t *testing.T) {
-
 	c1 := make(chan struct{})
 	c2 := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c1 <- struct{}{}
 		<-c2
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	}))
 
 	config := DefaultConfig
@@ -389,5 +384,4 @@ func TestDisableRunningJob(t *testing.T) {
 	if j.NextRun != nil {
 		t.Fatalf("unexpected nextRun: %v", *j.NextRun)
 	}
-
 }

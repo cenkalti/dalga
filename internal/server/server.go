@@ -10,11 +10,10 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
-	"github.com/senseyeio/duration"
-
 	"github.com/cenkalti/dalga/v3/internal/jobmanager"
 	"github.com/cenkalti/dalga/v3/internal/log"
 	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/senseyeio/duration"
 )
 
 type Server struct {
@@ -265,7 +264,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := Status{
-		InstanceId:          s.instanceID,
+		InstanceID:          s.instanceID,
 		InstanceRunningJobs: s.jobs.Running(),
 		RunningJobs:         running,
 		TotalJobs:           total,
@@ -283,7 +282,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 type Status struct {
-	InstanceId          uint32 `json:"instance_id"`
+	InstanceID          uint32 `json:"instance_id"`
 	InstanceRunningJobs int    `json:"instance_running_jobs"`
 	RunningJobs         int64  `json:"running_jobs"`
 	TotalJobs           int64  `json:"total_jobs"`

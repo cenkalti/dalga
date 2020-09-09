@@ -1,10 +1,11 @@
 dist: xenial
 sudo: true
 language: go
-go: 1.13.x
+go: 1.15.x
 services:
   - mysql
 before_script:
+  - curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(go env GOPATH)/bin v1.30.0
   - wget https://repo.mysql.com/mysql-apt-config_0.8.10-1_all.deb
   - sudo dpkg -i mysql-apt-config_0.8.10-1_all.deb
   - sudo apt-get update -q
@@ -13,7 +14,9 @@ before_script:
   - sudo mysql_upgrade
   - mysql --version
   - mysql -e 'create database test'
-script: go test -race -v ./...
+script:
+- golangci-lint run
+- go test -race -v ./...
 deploy:
 - provider: script
   script: curl -sL https://git.io/goreleaser | bash

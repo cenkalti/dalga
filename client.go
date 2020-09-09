@@ -10,16 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/senseyeio/duration"
-
 	"github.com/cenkalti/dalga/v3/internal/jobmanager"
 	"github.com/cenkalti/dalga/v3/internal/server"
 	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/senseyeio/duration"
 )
 
-var (
-	ErrNotExist = table.ErrNotExist
-)
+var ErrNotExist = table.ErrNotExist
 
 // ClientOpt is an option that can be provided to a Dalga client.
 type ClientOpt func(c *Client)
@@ -67,7 +64,7 @@ func (clnt *Client) Get(ctx context.Context, path, body string) (*Job, error) {
 	}
 	defer resp.Body.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(resp.Body)
+	_, _ = buf.ReadFrom(resp.Body)
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrNotExist
 	} else if resp.StatusCode != http.StatusOK {
@@ -124,7 +121,7 @@ func (clnt *Client) Schedule(ctx context.Context, path, body string, opts ...Sch
 	}
 	defer resp.Body.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(resp.Body)
+	_, _ = buf.ReadFrom(resp.Body)
 	if resp.StatusCode != http.StatusCreated {
 		return nil, fmt.Errorf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
 	}
@@ -179,7 +176,7 @@ func (clnt *Client) setEnabled(ctx context.Context, path, body string, enabled b
 	}
 	defer resp.Body.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(resp.Body)
+	_, _ = buf.ReadFrom(resp.Body)
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrNotExist
 	} else if resp.StatusCode != http.StatusOK {
@@ -213,7 +210,7 @@ func (clnt *Client) Cancel(ctx context.Context, path, body string) error {
 	}
 	defer resp.Body.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(resp.Body)
+	_, _ = buf.ReadFrom(resp.Body)
 	if resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
 	}
@@ -239,7 +236,7 @@ func (clnt *Client) Status(ctx context.Context) (*Status, error) {
 	}
 	defer resp.Body.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(resp.Body)
+	_, _ = buf.ReadFrom(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
 	}

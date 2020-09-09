@@ -1,4 +1,4 @@
-package dalga
+package dalga // nolint: testpackage
 
 // These test cases are adapted from job_recurring_test.go in https://github.com/ajvb/kala
 
@@ -19,7 +19,6 @@ import (
 //
 // This is useful for ensuring that durations behave correctly on a grand scale.
 func TestRecur(t *testing.T) {
-
 	tableTests := []struct {
 		Name        string
 		Location    string
@@ -166,6 +165,7 @@ func TestRecur(t *testing.T) {
 	client := NewClient("http://" + lis.Addr())
 
 	for _, testStruct := range tableTests {
+		testStruct := testStruct
 		t.Run(testStruct.Name, func(t *testing.T) {
 			ctx := context.Background()
 
@@ -179,16 +179,18 @@ func TestRecur(t *testing.T) {
 			clk.Set(now)
 
 			start := now.Add(time.Second * 5)
-			client.Schedule(ctx, "what", testStruct.Name,
+			_, err := client.Schedule(ctx, "what", testStruct.Name,
 				MustWithIntervalString(testStruct.Interval),
 				WithFirstRun(start),
 				MustWithLocationName(testStruct.Location),
 			)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			checkpoints := append([]string{testStruct.Start}, testStruct.Checkpoints...)
 
 			for i, chk := range checkpoints {
-
 				clk.Set(parseTimeInLocation(t, chk, testStruct.Location))
 
 				t.Logf("Checkpoint %d advanced time to: %s", i, clk.Get().Format(time.RFC3339))
@@ -214,11 +216,8 @@ func TestRecur(t *testing.T) {
 
 				time.Sleep(time.Millisecond * 500)
 			}
-
 		})
-
 	}
-
 }
 
 func parseTimeInLocation(t *testing.T, value string, location string) time.Time {
