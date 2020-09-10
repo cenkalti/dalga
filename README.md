@@ -1,8 +1,6 @@
 Dalga
 =====
 
-[![Build Status](https://travis-ci.org/cenkalti/dalga.png)](https://travis-ci.org/cenkalti/dalga)
-
 Dalga is a job scheduler.
 
 - Can schedule periodic or one-off jobs.
