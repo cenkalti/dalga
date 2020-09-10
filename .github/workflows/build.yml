@@ -6,15 +6,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: yes
-          MYSQL_DATABASE: test
-        ports:
-          - 3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
     steps:
       - uses: actions/setup-go@v2
         with:
@@ -38,6 +29,10 @@ jobs:
       - uses: golangci/golangci-lint-action@v2
         with:
           version: v1.30
+
+      - run: sudo systemctl start mysql.service
+
+      - run: mysql -e 'create database test'
 
       - name: Test
         run: go test -race -v ./...
