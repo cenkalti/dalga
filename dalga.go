@@ -59,6 +59,7 @@ func New(config Config) (*Dalga, error) {
 		Interval:    time.Duration(config.Jobs.RetryInterval) * time.Second,
 		MaxInterval: time.Duration(config.Jobs.RetryMaxInterval) * time.Second,
 		Multiplier:  config.Jobs.RetryMultiplier,
+		StopAfter:   config.Jobs.RetryStopAfter,
 	}
 	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, r, config.Jobs.RandomizationFactor, time.Millisecond*time.Duration(config.Jobs.ScanFrequency))
 	j := jobmanager.New(t, s)
