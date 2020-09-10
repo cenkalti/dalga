@@ -33,9 +33,9 @@ jobs:
 
       - name: Setup MySQL server
         run: |
-          systemctl start mysql.service
+          sudo systemctl start mysql.service
           mysqladmin -u root -p'root' password ''
-          mysql -e 'create database test'
+          mysql -u root -e 'create database test'
 
       - name: Test
         run: go test -race -v ./...
