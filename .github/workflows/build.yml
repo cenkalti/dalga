@@ -26,25 +26,30 @@ jobs:
       - name: Build
         run: go build -v ./...
 
-      - uses: golangci/golangci-lint-action@v2
+      - name: Lint
+        uses: golangci/golangci-lint-action@v2
         with:
           version: v1.30
 
-      - run: sudo systemctl start mysql.service
-
-      - run: mysql -e 'create database test'
+      - name: Setup MySQL server
+        run: |
+          systemctl start mysql.service
+          mysqladmin -u root -p'root' password ''
+          mysql -e 'create database test'
 
       - name: Test
         run: go test -race -v ./...
 
   goreleaser:
+    name: Build and release binaries
     needs: test
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: goreleaser/goreleaser-action@v2.2.0
 
-  push-docker:
+  docker:
+    name: Build and Push Docker Image
     needs: test
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
