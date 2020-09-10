@@ -18,10 +18,10 @@ import (
 )
 
 var (
-	config      = flag.String("config", "dalga.toml", "config file")
-	version     = flag.Bool("version", false, "print version")
-	createTable = flag.Bool("create-table", false, "create table for storing jobs")
-	debug       = flag.Bool("debug", false, "turn on debug messages")
+	config       = flag.String("config", "dalga.toml", "config file")
+	version      = flag.Bool("version", false, "print version")
+	createTables = flag.Bool("create-tables", false, "create table for storing jobs")
+	debug        = flag.Bool("debug", false, "turn on debug messages")
 )
 
 func main() {
@@ -47,7 +47,7 @@ func main() {
 	}
 	defer d.Close()
 
-	if *createTable {
+	if *createTables {
 		if err := d.CreateTable(); err != nil {
 			log.Fatal(err)
 		}

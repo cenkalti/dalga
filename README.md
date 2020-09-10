@@ -1,31 +1,37 @@
 Dalga
 =====
 
-Dalga is a job scheduler.
+Dalga is a job scheduler. It's like cron-as-a-service.
 
 - Can schedule periodic or one-off jobs.
-- Stores jobs in a MySQL table.
+- Stores jobs in a MySQL table with location info.
 - Has an HTTP interface for scheduling and cancelling jobs.
 - Makes a POST request to the endpoint defined in config on the job's execution time.
-- Multiple instances can be run for scaling out.
+- Retries failed jobs with constant or exponential backoff.
+- Multiple instances can be run for high availability and scaling out.
 
 Install
 -------
 
-    $ go get github.com/cenkalti/dalga/cmd/dalga
+Use pre-built Docker image:
+
+    $ docker run -e DALGA_MYSQL_HOST=mysql.example.com cenkalti/dalga
+
+or download the latest binary from [releases page](https://github.com/cenkalti/dalga/releases).
 
 Usage
 -----
 
-Example config file is in the repository.
+See [example config file](https://github.com/cenkalti/dalga/blob/v3/dalga.toml) for configuration options.
+Configuration values can also be set via environment variables with `DALGA_` prefix.
 
-To create the table for storing jobs:
+First, you must create the table for storing jobs:
 
-    $ dalga -config dalga.ini -create-table
+    $ dalga -config dalga.toml -create-tables
 
 Then, run the server:
 
-    $ dalga -config dalga.ini
+    $ dalga -config dalga.toml
 
 Schedule a new job to run every 60 seconds:
 
@@ -41,12 +47,12 @@ PUT always returns 201. If there is an existing job with path and body, it will 
 
 There are 4 options that you can pass to `Schedule` but not every combination is valid:
 
-| Param     | Description                            | Type              | Example                 |
-| -----     | -----------                            | ----              | -------                 |
-| interval  | Run job at intervals in seconds        | Integer           | 60                      |
-| first-run | Do not run job until this time         | RFC3339 Timestamp | 1985-04-12T23:20:50.52Z |
-| one-off   | Run job only once                      | Boolean           | true, false, 1, 0       |
-| immediate | Run job immediately as it is scheduled | Boolean           | true, false, 1, 0       |
+| Param     | Description                            | Type                         | Example                 |
+| -----     | -----------                            | ----                         | -------                 |
+| interval  | Run job at intervals                   | Integer or ISO 8601 interval | 60 or PT60S             |
+| first-run | Do not run job until this time         | RFC3339 Timestamp            | 1985-04-12T23:20:50.52Z |
+| one-off   | Run job only once                      | Boolean                      | true, false, 1, 0       |
+| immediate | Run job immediately as it is scheduled | Boolean                      | true, false, 1, 0       |
 
 60 seconds later, Dalga makes a POST to your endpoint defined in config:
 
