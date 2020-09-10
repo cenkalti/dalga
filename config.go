@@ -1,10 +1,6 @@
 package dalga
 
-import (
-	"fmt"
-
-	gcfg "gopkg.in/gcfg.v1"
-)
+import "fmt"
 
 var DefaultConfig = Config{
 	Jobs: jobsConfig{
@@ -38,10 +34,6 @@ type Config struct {
 	MySQL    mysqlConfig
 	Listen   listenConfig
 	Endpoint endpointConfig
-}
-
-func (c *Config) LoadFromFile(filename string) error {
-	return gcfg.ReadFileInto(c, filename)
 }
 
 type jobsConfig struct {

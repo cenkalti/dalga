@@ -3,23 +3,23 @@
 [jobs]
 # Next run time of periodic jobs are randomized on each run by this factor.
 # Must be a number between 0 and 1.
-randomizationFactor = 0
+randomizationFactor = 0.0
 
 # Failed jobs are retried after given duration in seconds.
 retryInterval = 60
 
 [mysql]
-host = 127.0.0.1
+host = "127.0.0.1"
 port = 3306
-db = test
-table = dalga
-user = root
-password =
+db = "test"
+table = "dalga"
+user = "root"
+password = ""
 
 [listen]
-host = 127.0.0.1
+host = "127.0.0.1"
 port = 34006
 
 [endpoint]
-baseurl = http://127.0.0.1:5000/
+baseurl = "http://127.0.0.1:5000/"
 timeout = 10

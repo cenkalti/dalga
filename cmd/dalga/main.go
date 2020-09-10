@@ -10,10 +10,13 @@ import (
 
 	"github.com/cenkalti/dalga/v3"
 	"github.com/cenkalti/dalga/v3/internal/log"
+	"github.com/knadh/koanf"
+	"github.com/knadh/koanf/parsers/toml"
+	"github.com/knadh/koanf/providers/file"
 )
 
 var (
-	config      = flag.String("config", "", "config file")
+	config      = flag.String("config", "dalga.toml", "config file")
 	version     = flag.Bool("version", false, "print version")
 	createTable = flag.Bool("create-table", false, "create table for storing jobs")
 	debug       = flag.Bool("debug", false, "turn on debug messages")
@@ -31,11 +34,9 @@ func main() {
 		log.EnableDebug()
 	}
 
-	c := dalga.DefaultConfig
-	if *config != "" {
-		if err := c.LoadFromFile(*config); err != nil {
-			log.Fatal(err)
-		}
+	c, err := readConfig()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	d, err := dalga.New(c)
@@ -62,4 +63,15 @@ func main() {
 	}()
 
 	d.Run(ctx)
+}
+
+func readConfig() (c dalga.Config, err error) {
+	c = dalga.DefaultConfig
+	k := koanf.New(".")
+	err = k.Load(file.Provider(*config), toml.Parser())
+	if err != nil {
+		return
+	}
+	err = k.Unmarshal("", &c)
+	return
 }
