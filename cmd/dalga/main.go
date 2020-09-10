@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/cenkalti/dalga/v3"
 	"github.com/cenkalti/dalga/v3/internal/log"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
+	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
 )
 
@@ -69,6 +71,12 @@ func readConfig() (c dalga.Config, err error) {
 	c = dalga.DefaultConfig
 	k := koanf.New(".")
 	err = k.Load(file.Provider(*config), toml.Parser())
+	if err != nil {
+		return
+	}
+	err = k.Load(env.Provider("DALGA_", ".", func(s string) string {
+		return strings.Replace(strings.TrimPrefix(s, "DALGA_"), "_", ".", -1)
+	}), nil)
 	if err != nil {
 		return
 	}
