@@ -6,7 +6,7 @@
 randomizationFactor = 0.0
 
 # Failed jobs are retried after given duration in seconds.
-retryInterval = 60
+retryInterval = "60s"
 
 [mysql]
 host = "127.0.0.1"
@@ -22,4 +22,4 @@ port = 34006
 
 [endpoint]
 baseurl = "http://127.0.0.1:5000/"
-timeout = 10
+timeout = "10s"

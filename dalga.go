@@ -56,14 +56,14 @@ func New(config Config) (*Dalga, error) {
 	t.FixedIntervals = config.Jobs.FixedIntervals
 	i := instance.New(t)
 	r := &retry.Retry{
-		Interval:    time.Duration(config.Jobs.RetryInterval) * time.Second,
-		MaxInterval: time.Duration(config.Jobs.RetryMaxInterval) * time.Second,
+		Interval:    config.Jobs.RetryInterval,
+		MaxInterval: config.Jobs.RetryMaxInterval,
 		Multiplier:  config.Jobs.RetryMultiplier,
 		StopAfter:   config.Jobs.RetryStopAfter,
 	}
-	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, time.Duration(config.Endpoint.Timeout)*time.Second, r, config.Jobs.RandomizationFactor, time.Millisecond*time.Duration(config.Jobs.ScanFrequency))
+	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, config.Endpoint.Timeout, r, config.Jobs.RandomizationFactor, config.Jobs.ScanFrequency)
 	j := jobmanager.New(t, s)
-	srv := server.New(j, t, i.ID(), lis, 10*time.Second)
+	srv := server.New(j, t, i.ID(), lis, config.Listen.ShutdownTimeout)
 	return &Dalga{
 		config:    config,
 		db:        db,

@@ -236,8 +236,8 @@ func TestEnableScheduling(t *testing.T) {
 
 			config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
 			config.Jobs.FixedIntervals = test.fixed
-			config.Jobs.RetryInterval = test.retry
-			config.Jobs.RetryMaxInterval = test.retry
+			config.Jobs.RetryInterval = time.Duration(test.retry) * time.Second
+			config.Jobs.RetryMaxInterval = time.Duration(test.retry) * time.Second
 			config.Jobs.RetryMultiplier = 1
 
 			d, lis, cleanup := newDalga(t, config)

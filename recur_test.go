@@ -146,7 +146,7 @@ func TestRecur(t *testing.T) {
 	config := DefaultConfig
 	config.MySQL.SkipLocked = false
 	config.Jobs.FixedIntervals = true
-	config.Jobs.ScanFrequency = 100
+	config.Jobs.ScanFrequency = 100 * time.Millisecond
 	config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
 	config.Listen.Port = 34008
 

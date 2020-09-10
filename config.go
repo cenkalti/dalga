@@ -1,13 +1,16 @@
 package dalga
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 var DefaultConfig = Config{
 	Jobs: jobsConfig{
-		RetryInterval:    60,
+		RetryInterval:    time.Minute,
 		RetryMultiplier:  1,
-		RetryMaxInterval: 60,
-		ScanFrequency:    1000,
+		RetryMaxInterval: time.Minute,
+		ScanFrequency:    time.Second,
 	},
 	MySQL: mysqlConfig{
 		Host:         "127.0.0.1",
@@ -20,12 +23,13 @@ var DefaultConfig = Config{
 		SkipLocked:   true,
 	},
 	Listen: listenConfig{
-		Host: "127.0.0.1",
-		Port: 34006,
+		Host:            "127.0.0.1",
+		Port:            34006,
+		ShutdownTimeout: 10 * time.Second,
 	},
 	Endpoint: endpointConfig{
 		BaseURL: "http://127.0.0.1:5000/",
-		Timeout: 10,
+		Timeout: 10 * time.Second,
 	},
 }
 
@@ -38,12 +42,12 @@ type Config struct {
 
 type jobsConfig struct {
 	RandomizationFactor float64
-	RetryInterval       int
+	RetryInterval       time.Duration
 	RetryMultiplier     float64
-	RetryMaxInterval    int
-	RetryStopAfter      int
+	RetryMaxInterval    time.Duration
+	RetryStopAfter      time.Duration
 	FixedIntervals      bool
-	ScanFrequency       int
+	ScanFrequency       time.Duration
 }
 
 type mysqlConfig struct {
@@ -62,8 +66,9 @@ func (c mysqlConfig) DSN() string {
 }
 
 type listenConfig struct {
-	Host string
-	Port int
+	Host            string
+	Port            int
+	ShutdownTimeout time.Duration
 }
 
 func (c listenConfig) Addr() string {
@@ -72,5 +77,5 @@ func (c listenConfig) Addr() string {
 
 type endpointConfig struct {
 	BaseURL string
-	Timeout int
+	Timeout time.Duration
 }
