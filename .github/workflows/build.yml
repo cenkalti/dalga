@@ -38,7 +38,12 @@ jobs:
           mysql -u root -e 'create database test'
 
       - name: Test
-        run: go test -race -v ./...
+        run: go test -race -v -covermode atomic -coverprofile=covprofile ./...
+
+      - name: Send coverage
+        uses: shogo82148/actions-goveralls@v1
+        with:
+          path-to-profile: covprofile
 
   goreleaser:
     name: Build and release binaries
