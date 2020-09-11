@@ -6,10 +6,12 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build -o /go/bin/dalga ./cmd/dalga
+ARG VERSION
+ARG COMMIT
+ARG DATE
+RUN CGO_ENABLED=0 go build -o /go/bin/dalga -ldflags="-s -w -X main.version=$VERSION -X main.commit=$COMMIT -X main.date=$DATE" ./cmd/dalga
 
 FROM alpine:latest
-ARG GO_PROJECT
 RUN touch /etc/dalga.toml
 COPY --from=0 /go/bin/dalga /bin/dalga
 ENTRYPOINT ["/bin/dalga", "-config", "/etc/dalga.toml"]
