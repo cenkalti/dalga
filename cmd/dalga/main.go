@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/cenkalti/dalga/v3/internal/log"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
+	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
 )
@@ -84,7 +86,14 @@ func main() {
 func readConfig() (c dalga.Config, err error) {
 	c = dalga.DefaultConfig
 	k := koanf.New(".")
-	err = k.Load(file.Provider(*configFlag), toml.Parser())
+	var parser koanf.Parser
+	ext := filepath.Ext(*configFlag)
+	if ext == ".yaml" || ext == ".yml" {
+		parser = yaml.Parser()
+	} else {
+		parser = toml.Parser()
+	}
+	err = k.Load(file.Provider(*configFlag), parser)
 	if err != nil {
 		return
 	}

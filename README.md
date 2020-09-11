@@ -22,7 +22,8 @@ or download the latest binary from [releases page](https://github.com/cenkalti/d
 Usage
 -----
 
-See [example config file](https://github.com/cenkalti/dalga/blob/v3/dalga.toml) for configuration options.
+See [example config file](https://github.com/cenkalti/dalga/blob/v3/config.toml) for configuration options.
+TOML and YAML file formats are supported.
 Configuration values can also be set via environment variables with `DALGA_` prefix.
 
 First, you must create the table for storing jobs:
