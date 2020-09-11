@@ -125,9 +125,11 @@ func (t *Table) scanJob(row *sql.Row, withCurrentTime bool) (j Job, now time.Tim
 	if err != nil {
 		return
 	}
-	j.Interval, err = duration.ParseISO8601(interval)
-	if err != nil {
-		return
+	if interval != "" {
+		j.Interval, err = duration.ParseISO8601(interval)
+		if err != nil {
+			return
+		}
 	}
 	if instanceID.Valid {
 		id := uint32(instanceID.Int64)
@@ -163,7 +165,11 @@ func (t *Table) AddJob(ctx context.Context, key Key, interval, delay duration.Du
 	if location != time.UTC {
 		locationName = location.String()
 	}
-	_, err = tx.ExecContext(ctx, s, key.Path, key.Body, interval.String(), locationName, nextRun.UTC(), nextRun.UTC())
+	var intervalString string
+	if !interval.IsZero() {
+		intervalString = interval.String()
+	}
+	_, err = tx.ExecContext(ctx, s, key.Path, key.Body, intervalString, locationName, nextRun.UTC(), nextRun.UTC())
 	if err != nil {
 		return nil, err
 	}
@@ -267,9 +273,11 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	j.Interval, err = duration.ParseISO8601(interval)
-	if err != nil {
-		return nil, err
+	if interval != "" {
+		j.Interval, err = duration.ParseISO8601(interval)
+		if err != nil {
+			return nil, err
+		}
 	}
 	err = j.setLocation(locationName)
 	if err != nil {
