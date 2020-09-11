@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// DefaultConfig contains sensible defaults for Dalga instance.
+// For a simple deployment, you only need to override MySQL options.
 var DefaultConfig = Config{
 	Jobs: jobsConfig{
 		RetryInterval:    time.Minute,
@@ -33,6 +35,7 @@ var DefaultConfig = Config{
 	},
 }
 
+// Config values for Dalga instance.
 type Config struct {
 	Jobs     jobsConfig
 	MySQL    mysqlConfig

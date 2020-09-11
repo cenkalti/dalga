@@ -16,6 +16,7 @@ import (
 	"github.com/senseyeio/duration"
 )
 
+// ErrNotExist is returned when requested job does not exist.
 var ErrNotExist = table.ErrNotExist
 
 // ClientOpt is an option that can be provided to a Dalga client.
