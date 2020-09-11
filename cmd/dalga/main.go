@@ -17,18 +17,32 @@ import (
 	"github.com/knadh/koanf/providers/file"
 )
 
+// These variables are set by goreleaser on build.
 var (
-	config       = flag.String("config", "dalga.toml", "config file")
-	version      = flag.Bool("version", false, "print version")
+	version = "0.0.0"
+	commit  = ""
+	date    = ""
+)
+
+var (
+	configFlag   = flag.String("config", "dalga.toml", "config file")
+	versionFlag  = flag.Bool("version", false, "print version")
 	createTables = flag.Bool("create-tables", false, "create table for storing jobs")
 	debug        = flag.Bool("debug", false, "turn on debug messages")
 )
 
+func versionString() string {
+	if len(commit) > 7 {
+		commit = commit[:7]
+	}
+	return fmt.Sprintf("%s (%s) [%s]", version, commit, date)
+}
+
 func main() {
 	flag.Parse()
 
-	if *version {
-		fmt.Println(dalga.Version)
+	if *versionFlag {
+		fmt.Println(versionString())
 		return
 	}
 
@@ -70,7 +84,7 @@ func main() {
 func readConfig() (c dalga.Config, err error) {
 	c = dalga.DefaultConfig
 	k := koanf.New(".")
-	err = k.Load(file.Provider(*config), toml.Parser())
+	err = k.Load(file.Provider(*configFlag), toml.Parser())
 	if err != nil {
 		return
 	}

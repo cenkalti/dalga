@@ -17,8 +17,6 @@ import (
 	"github.com/cenkalti/dalga/v3/internal/table"
 )
 
-const Version = "2.0.0"
-
 // Dalga is a job scheduler.
 type Dalga struct {
 	config    Config
