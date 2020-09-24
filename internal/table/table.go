@@ -11,8 +11,13 @@ import (
 
 	"github.com/cenkalti/dalga/v3/internal/clock"
 	"github.com/cenkalti/dalga/v3/internal/retry"
+	my "github.com/go-mysql/errors"
 	"github.com/go-sql-driver/mysql"
 	"github.com/senseyeio/duration"
+)
+
+const (
+	maxRetries = 10
 )
 
 var ErrNotExist = errors.New("job does not exist")
@@ -330,10 +335,13 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, 
 	s := "UPDATE " + t.name + " " +
 		"SET next_run=?, next_sched=?, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
-	// Note that we are passing next_run as sql.NullTime value.
-	// If next_run is already NULL (j.NextRun.Valid == false), it is not going to be updated.
-	// This may happen when the job gets disabled while it is running.
-	_, err = tx.ExecContext(ctx, s, j.NextRun, j.NextSched.UTC(), key.Path, key.Body)
+	err = withRetries(maxRetries, func() error {
+		// Note that we are passing next_run as sql.NullTime value.
+		// If next_run is already NULL (j.NextRun.Valid == false), it is not going to be updated.
+		// This may happen when the job gets disabled while it is running.
+		_, err = tx.ExecContext(ctx, s, j.NextRun, j.NextSched.UTC(), key.Path, key.Body)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to set next run: %w", err)
 	}
@@ -419,4 +427,31 @@ func (t *Table) DeleteInstance(ctx context.Context, id uint32) error {
 func randomize(d time.Duration, f float64) time.Duration {
 	delta := time.Duration(f * float64(d))
 	return d - delta + time.Duration(float64(2*delta)*rand.Float64()) // nolint: gosec
+}
+
+func withRetries(retryCount int, fn func() error) (err error) {
+	for attempt := 0; attempt < retryCount; attempt++ {
+		err = fn()
+		if err == nil {
+			return nil
+		}
+		if dur := mysqlRetryInterval(err); dur > 0 {
+			time.Sleep(dur)
+			continue
+		}
+		break
+	}
+	return
+}
+
+func mysqlRetryInterval(err error) time.Duration {
+	if ok, myerr := my.Error(err); ok { // MySQL error
+		if my.CanRetry(myerr) {
+			return time.Second
+		}
+		if my.MySQLErrorCode(err) == 1213 { // deadlock
+			return time.Millisecond * 10
+		}
+	}
+	return 0
 }
