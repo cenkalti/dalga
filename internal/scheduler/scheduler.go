@@ -122,6 +122,7 @@ func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err er
 	}
 	req.Header.Set("content-type", "text/plain")
 	req.Header.Set("dalga-sched", j.NextSched.Format(time.RFC3339))
+	req.Header.Set("dalga-instance", fmt.Sprintf("%d", s.instanceID))
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return

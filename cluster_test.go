@@ -12,12 +12,18 @@ import (
 
 func TestCluster(t *testing.T) {
 
-	called := make(chan string)
+	called := make(chan struct {
+		body     string
+		instance string
+	})
 	endpoint := func(w http.ResponseWriter, r *http.Request) {
 		var buf bytes.Buffer
 		buf.ReadFrom(r.Body)
 		r.Body.Close()
-		called <- buf.String()
+		called <- struct {
+			body     string
+			instance string
+		}{buf.String(), r.Header.Get("dalga-instance")}
 	}
 
 	mux := http.NewServeMux()
@@ -76,16 +82,45 @@ func TestCluster(t *testing.T) {
 
 		for i := 0; i < jobCount; i++ {
 			rcv := <-called
-			if ok := received[rcv]; ok {
+			if ok := received[rcv.body]; ok {
 				t.Errorf("Received job %s twice!", rcv)
 			}
-			received[rcv] = true
+			received[rcv.body] = true
 		}
 
 		for key, ok := range received {
 			if !ok {
 				t.Errorf("Did not receive job %s", key)
 			}
+		}
+
+		time.Sleep(time.Second)
+
+	})
+
+	t.Run("distributed amongst instances", func(t *testing.T) {
+
+		start := time.Now().Add(time.Second)
+		jobCount := 99
+		countsByInstance := map[string]int{}
+		for i := 0; i < jobCount; i++ {
+			key := fmt.Sprintf("job%d", i)
+			_, err := client.Schedule(ctx, "banana", key, WithFirstRun(start), WithOneOff())
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		for i := 0; i < jobCount; i++ {
+			rcv := <-called
+			countForInstance := countsByInstance[rcv.instance]
+			countsByInstance[rcv.instance] = countForInstance + 1
+		}
+
+		t.Logf("Counts by instance: %+v", countsByInstance)
+
+		if len(countsByInstance) != len(instances) {
+			t.Fatalf("Expected each instance to have done some jobs.")
 		}
 
 		time.Sleep(time.Second)
