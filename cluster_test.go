@@ -1,4 +1,4 @@
-package dalga
+package dalga // nolint: testpackage
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 )
 
 func TestCluster(t *testing.T) {
-
 	called := make(chan struct {
 		body     string
 		instance string
@@ -67,7 +66,6 @@ func TestCluster(t *testing.T) {
 	// grab the same job and execute it.  It's hardly a Jepsen test,
 	// more of a basic sanity check.
 	t.Run("run at most once", func(t *testing.T) {
-
 		start := time.Now().Add(time.Second)
 		jobCount := 100
 		received := make(map[string]bool, jobCount)
@@ -95,11 +93,9 @@ func TestCluster(t *testing.T) {
 		}
 
 		time.Sleep(time.Second)
-
 	})
 
 	t.Run("distributed amongst instances", func(t *testing.T) {
-
 		start := time.Now().Add(time.Second)
 		jobCount := 99
 		countsByInstance := map[string]int{}
@@ -124,7 +120,5 @@ func TestCluster(t *testing.T) {
 		}
 
 		time.Sleep(time.Second)
-
 	})
-
 }
