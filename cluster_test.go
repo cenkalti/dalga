@@ -153,7 +153,7 @@ func TestClusterSuccession(t *testing.T) {
 		config.Jobs.FixedIntervals = true
 		config.Jobs.ScanFrequency = 100 * time.Millisecond
 		config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
-		config.Listen.Port = 34100 + i
+		config.Listen.Port = 34200 + i
 
 		d, lis, cleanup := newDalga(t, config)
 		instances[i] = d
