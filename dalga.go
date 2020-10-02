@@ -59,7 +59,7 @@ func New(config Config) (*Dalga, error) {
 		Multiplier:  config.Jobs.RetryMultiplier,
 		StopAfter:   config.Jobs.RetryStopAfter,
 	}
-	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, config.Endpoint.Timeout, r, config.Jobs.RandomizationFactor, config.Jobs.ScanFrequency)
+	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, config.Endpoint.Timeout, r, config.Jobs.RandomizationFactor, config.Jobs.ScanFrequency, config.Jobs.MaxRunning)
 	j := jobmanager.New(t, s)
 	srv := server.New(j, t, i.ID(), lis, config.Listen.ShutdownTimeout)
 	return &Dalga{

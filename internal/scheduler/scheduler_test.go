@@ -51,7 +51,7 @@ func TestSchedHeader(t *testing.T) {
 		Multiplier:  1,
 	}
 	i := instance.New(tbl)
-	s := scheduler.New(tbl, i.ID(), "http://"+srv.Listener.Addr().String()+"/", 4*time.Second, r, 0, 250*time.Millisecond)
+	s := scheduler.New(tbl, i.ID(), "http://"+srv.Listener.Addr().String()+"/", 4*time.Second, r, 0, 250*time.Millisecond, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {

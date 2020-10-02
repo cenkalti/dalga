@@ -27,10 +27,11 @@ type Scheduler struct {
 	scanFrequency       time.Duration
 	done                chan struct{}
 	wg                  sync.WaitGroup
+	maxRunning          chan struct{}
 }
 
-func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryParams *retry.Retry, randomizationFactor float64, scanFrequency time.Duration) *Scheduler {
-	return &Scheduler{
+func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryParams *retry.Retry, randomizationFactor float64, scanFrequency time.Duration, maxRunning int) *Scheduler {
+	s := &Scheduler{
 		table:               t,
 		instanceID:          instanceID,
 		baseURL:             baseURL,
@@ -42,6 +43,11 @@ func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.D
 			Timeout: clientTimeout,
 		},
 	}
+	// Create a semaphore channel to limit max running jobs.
+	if maxRunning > 0 {
+		s.maxRunning = make(chan struct{}, maxRunning)
+	}
+	return s
 }
 
 func (s *Scheduler) NotifyDone() <-chan struct{} {
@@ -95,18 +101,29 @@ func (s *Scheduler) runOnce(ctx context.Context) bool {
 		}
 		return true
 	}
-
-	s.wg.Add(1)
-	go func(job *table.Job) {
-		atomic.AddInt32(&s.runningJobs, 1)
-		if err := s.execute(job); err != nil {
-			log.Printf("error on execution of %s: %s", job.String(), err)
+	if s.maxRunning != nil {
+		// Wait for semaphore
+		select {
+		case s.maxRunning <- struct{}{}:
+		case <-ctx.Done():
+			return false
 		}
-		atomic.AddInt32(&s.runningJobs, -1)
-		s.wg.Done()
-	}(job)
-
+	}
+	s.wg.Add(1)
+	go s.runJob(job)
 	return true
+}
+
+func (s *Scheduler) runJob(job *table.Job) {
+	atomic.AddInt32(&s.runningJobs, 1)
+	if err := s.execute(job); err != nil {
+		log.Printf("error on execution of %s: %s", job.String(), err)
+	}
+	if s.maxRunning != nil {
+		<-s.maxRunning
+	}
+	atomic.AddInt32(&s.runningJobs, -1)
+	s.wg.Done()
 }
 
 // execute makes a POST request to the endpoint and updates the Job's next run time.

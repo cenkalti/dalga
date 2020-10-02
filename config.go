@@ -14,6 +14,7 @@ var DefaultConfig = Config{
 		RetryMultiplier:  1,
 		RetryMaxInterval: time.Minute,
 		ScanFrequency:    time.Second,
+		MaxRunning:       100,
 	},
 	MySQL: mysqlConfig{
 		Host:         "127.0.0.1",
@@ -55,6 +56,7 @@ type jobsConfig struct {
 	RetryStopAfter      time.Duration
 	FixedIntervals      bool
 	ScanFrequency       time.Duration
+	MaxRunning          int
 }
 
 type mysqlConfig struct {
