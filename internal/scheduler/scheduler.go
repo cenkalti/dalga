@@ -56,42 +56,50 @@ func (s *Scheduler) Run(ctx context.Context) {
 
 	for {
 		log.Debugln("---")
-
-		job, err := s.table.Front(ctx, s.instanceID)
-		if err == context.Canceled {
+		ok := s.runOnce(ctx)
+		if !ok {
 			return
 		}
-		if err == sql.ErrNoRows {
-			log.Debugln("no scheduled jobs in the table")
-			select {
-			case <-time.After(s.scanFrequency):
-			case <-ctx.Done():
-				return
-			}
-			continue
-		}
-		if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1146 {
-			// Table doesn't exist
-			log.Fatal(myErr)
-		}
-		if err != nil {
-			log.Println("error while getting next job:", err)
-			select {
-			case <-time.After(s.scanFrequency):
-			case <-ctx.Done():
-				return
-			}
-			continue
-		}
-
-		go func(job *table.Job) {
-			atomic.AddInt32(&s.runningJobs, 1)
-			if err := s.execute(ctx, job); err != nil {
-				log.Printf("error on execution of %s: %s", job.String(), err)
-			}
-			atomic.AddInt32(&s.runningJobs, -1)
-		}(job)
 	}
+}
+
+func (s *Scheduler) runOnce(ctx context.Context) bool {
+	job, err := s.table.Front(ctx, s.instanceID)
+	if err == context.Canceled {
+		return false
+	}
+	if err == sql.ErrNoRows {
+		log.Debugln("no scheduled jobs in the table")
+		select {
+		case <-time.After(s.scanFrequency):
+		case <-ctx.Done():
+			return false
+		}
+		return true
+	}
+	if myErr, ok := err.(*mysql.MySQLError); ok && myErr.Number == 1146 {
+		// Table doesn't exist
+		log.Fatal(myErr)
+	}
+	if err != nil {
+		log.Println("error while getting next job:", err)
+		select {
+		case <-time.After(s.scanFrequency):
+		case <-ctx.Done():
+			return false
+		}
+		return true
+	}
+
+	go func(job *table.Job) {
+		atomic.AddInt32(&s.runningJobs, 1)
+		if err := s.execute(ctx, job); err != nil {
+			log.Printf("error on execution of %s: %s", job.String(), err)
+		}
+		atomic.AddInt32(&s.runningJobs, -1)
+	}(job)
+
+	return true
 }
 
 // execute makes a POST request to the endpoint and updates the Job's next run time.
