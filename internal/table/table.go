@@ -446,11 +446,11 @@ func withRetries(retryCount int, fn func() error) (err error) {
 
 func mysqlRetryInterval(err error) time.Duration {
 	if ok, myerr := my.Error(err); ok { // MySQL error
-		if my.CanRetry(myerr) {
-			return time.Second
-		}
 		if my.MySQLErrorCode(err) == 1213 { // deadlock
 			return time.Millisecond * 10
+		}
+		if my.CanRetry(myerr) {
+			return time.Second
 		}
 	}
 	return 0
