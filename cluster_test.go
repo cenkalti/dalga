@@ -121,6 +121,7 @@ func TestCluster(t *testing.T) {
 
 func TestClusterSuccession(t *testing.T) {
 	const numInstances = 3
+	const testTimeout = 3 * time.Second
 	instances := make([]*Dalga, numInstances)
 	ctxes := make([]context.Context, numInstances)
 	cancels := make([]func(), numInstances)
@@ -132,7 +133,6 @@ func TestClusterSuccession(t *testing.T) {
 		instance := r.Header.Get("dalga-instance")
 		killStart <- instance
 		killDone <- instance
-		w.WriteHeader(200)
 	}
 
 	mux := http.NewServeMux()
@@ -140,7 +140,6 @@ func TestClusterSuccession(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	var client *Client
 	for i := 0; i < numInstances; i++ {
 		config := DefaultConfig
 		config.MySQL.SkipLocked = false
@@ -149,14 +148,14 @@ func TestClusterSuccession(t *testing.T) {
 		config.Jobs.ScanFrequency = 100 * time.Millisecond
 		config.Endpoint.BaseURL = "http://" + srv.Listener.Addr().String() + "/"
 		config.Listen.Port = 34200 + i
+		config.Listen.ShutdownTimeout = 2 * time.Second
+		config.Endpoint.Timeout = time.Second
 
-		d, lis, cleanup := newDalga(t, config)
+		d, _, cleanup := newDalga(t, config)
 		instances[i] = d
-		if i == 0 {
-			client = NewClient("http://" + lis.Addr())
-		}
 		defer cleanup()
 	}
+	client := NewClient("http://" + instances[0].listener.Addr().String())
 
 	for i, inst := range instances {
 		go inst.Run(ctxes[i])
@@ -181,7 +180,7 @@ func TestClusterSuccession(t *testing.T) {
 		var doomedInstance string
 		select {
 		case doomedInstance = <-killStart:
-		case <-time.After(time.Second * 2):
+		case <-time.After(testTimeout):
 			t.Fatal("Didn't get the kill start")
 		}
 
@@ -205,12 +204,12 @@ func TestClusterSuccession(t *testing.T) {
 		}
 		select {
 		case <-done:
-		case <-time.After(time.Second * 2):
+		case <-time.After(testTimeout):
 			t.Fatal("Didn't get the done signal from the dead Dalga")
 		}
 		select {
 		case <-killDone:
-		case <-time.After(time.Second * 2):
+		case <-time.After(testTimeout):
 			t.Fatal("Didn't finish the kill")
 		}
 
@@ -218,7 +217,7 @@ func TestClusterSuccession(t *testing.T) {
 		var replacement string
 		select {
 		case replacement = <-killStart:
-		case <-time.After(time.Second * 2):
+		case <-time.After(testTimeout):
 			t.Fatal("Job wasn't picked up by a replacement instance")
 		}
 		if replacement == doomedInstance {
@@ -229,7 +228,7 @@ func TestClusterSuccession(t *testing.T) {
 			if finished != replacement {
 				t.Fatalf("Something else is very wrong, finished is '%s' but should be '%s'", finished, replacement)
 			}
-		case <-time.After(time.Second * 2):
+		case <-time.After(testTimeout):
 			t.Fatal("Job was never finished")
 		}
 	})
