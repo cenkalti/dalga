@@ -12,6 +12,7 @@ import (
 type Instance struct {
 	id    uint32
 	table *table.Table
+	ready chan struct{}
 	done  chan struct{}
 }
 
@@ -22,6 +23,7 @@ func New(t *table.Table) *Instance {
 	return &Instance{
 		id:    id,
 		table: t,
+		ready: make(chan struct{}),
 		done:  make(chan struct{}),
 	}
 }
@@ -34,9 +36,14 @@ func (i *Instance) NotifyDone() chan struct{} {
 	return i.done
 }
 
+func (i *Instance) NotifyReady() chan struct{} {
+	return i.ready
+}
+
 func (i *Instance) Run(ctx context.Context) {
 	defer close(i.done)
 	i.updateInstance(ctx)
+	close(i.ready)
 	for {
 		select {
 		case <-time.After(time.Second):

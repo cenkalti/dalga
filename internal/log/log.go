@@ -1,35 +1,46 @@
 package log
 
-import (
-	stdlog "log"
-)
+import stdlog "log"
 
-var debugging bool
+var (
+	debugging bool
+	disabled  bool
+)
 
 func EnableDebug() {
 	debugging = true
 }
 
+func Disable() {
+	disabled = true
+}
+
 func Debugln(args ...interface{}) {
-	if debugging {
+	if debugging && !disabled {
 		stdlog.Println(args...)
 	}
 }
 
 func Debugf(fmt string, args ...interface{}) {
-	if debugging {
+	if debugging && !disabled {
 		stdlog.Printf(fmt, args...)
 	}
 }
 
 func Println(args ...interface{}) {
-	stdlog.Println(args...)
+	if !disabled {
+		stdlog.Println(args...)
+	}
 }
 
 func Printf(fmt string, args ...interface{}) {
-	stdlog.Printf(fmt, args...)
+	if !disabled {
+		stdlog.Printf(fmt, args...)
+	}
 }
 
 func Fatal(msg interface{}) {
-	stdlog.Fatal(msg)
+	if !disabled {
+		stdlog.Fatal(msg)
+	}
 }

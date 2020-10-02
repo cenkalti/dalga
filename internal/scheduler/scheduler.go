@@ -28,6 +28,10 @@ type Scheduler struct {
 	done                chan struct{}
 	wg                  sync.WaitGroup
 	maxRunning          chan struct{}
+
+	// Flags to disable some functionality for running benchmarks.
+	skipOneOffDelete bool
+	skipPost         bool
 }
 
 func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryParams *retry.Retry, randomizationFactor float64, scanFrequency time.Duration, maxRunning int) *Scheduler {
@@ -146,7 +150,7 @@ func (s *Scheduler) execute(j *table.Job) error {
 		log.Printf("error while doing http post for %s: %s", j.String(), err)
 		return s.table.UpdateNextRun(ctx, j.Key, 0.0, s.retryParams)
 	}
-	if j.OneOff() {
+	if !s.skipOneOffDelete && j.OneOff() {
 		log.Debugln("deleting one-off job")
 		return s.table.DeleteJob(ctx, j.Key)
 	}
@@ -158,6 +162,9 @@ func (s *Scheduler) execute(j *table.Job) error {
 }
 
 func (s *Scheduler) postJob(ctx context.Context, j *table.Job) (code int, err error) {
+	if s.skipPost {
+		return 200, nil
+	}
 	url := s.baseURL + j.Path
 	log.Debugln("doing http post to", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(j.Body))
