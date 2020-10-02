@@ -249,6 +249,12 @@ func (t *Table) DisableJob(ctx context.Context, key Key) (*Job, error) {
 
 // DeleteJob removes a job from scheduler table.
 func (t *Table) DeleteJob(ctx context.Context, key Key) error {
+	return withRetries(maxRetries, func() error {
+		return t.deleteJob(ctx, key)
+	})
+}
+
+func (t *Table) deleteJob(ctx context.Context, key Key) error {
 	s := "DELETE FROM " + t.name + " WHERE path=? AND body=?"
 	_, err := t.db.ExecContext(ctx, s, key.Path, key.Body)
 	return err
@@ -257,6 +263,16 @@ func (t *Table) DeleteJob(ctx context.Context, key Key) error {
 // Front returns the next scheduled job from the table,
 // based on the value of next_run, and claims it for the calling instance.
 func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
+	var job *Job
+	err := withRetries(maxRetries, func() error {
+		var err error
+		job, err = t.front(ctx, instanceID)
+		return err
+	})
+	return job, err
+}
+
+func (t *Table) front(ctx context.Context, instanceID uint32) (*Job, error) {
 	tx, err := t.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
