@@ -308,6 +308,12 @@ func (t *Table) Front(ctx context.Context, instanceID uint32) (*Job, error) {
 // If UpdateNextRun is called on a disabled job, as many happen when a job has
 // been disabled during execution, next_sched will advance but next_run will remain NULL.
 func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, retryParams *retry.Retry) error {
+	return withRetries(maxRetries, func() error {
+		return t.updateNextRun(ctx, key, randFactor, retryParams)
+	})
+}
+
+func (t *Table) updateNextRun(ctx context.Context, key Key, randFactor float64, retryParams *retry.Retry) error {
 	tx, j, now, err := t.getForUpdate(ctx, key.Path, key.Body)
 	if err != nil {
 		return err
@@ -335,13 +341,10 @@ func (t *Table) UpdateNextRun(ctx context.Context, key Key, randFactor float64, 
 	s := "UPDATE " + t.name + " " +
 		"SET next_run=?, next_sched=?, instance_id=NULL " +
 		"WHERE path = ? AND body = ?"
-	err = withRetries(maxRetries, func() error {
-		// Note that we are passing next_run as sql.NullTime value.
-		// If next_run is already NULL (j.NextRun.Valid == false), it is not going to be updated.
-		// This may happen when the job gets disabled while it is running.
-		_, err = tx.ExecContext(ctx, s, j.NextRun, j.NextSched.UTC(), key.Path, key.Body)
-		return err
-	})
+	// Note that we are passing next_run as sql.NullTime value.
+	// If next_run is already NULL (j.NextRun.Valid == false), it is not going to be updated.
+	// This may happen when the job gets disabled while it is running.
+	_, err = tx.ExecContext(ctx, s, j.NextRun, j.NextSched.UTC(), key.Path, key.Body)
 	if err != nil {
 		return fmt.Errorf("failed to set next run: %w", err)
 	}
