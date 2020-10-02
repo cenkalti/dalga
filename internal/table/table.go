@@ -69,14 +69,14 @@ func (t *Table) Create(ctx context.Context) error {
 
 func (t *Table) Drop(ctx context.Context) error {
 	dropSQL := "DROP TABLE " + t.name
-	_, err := t.db.Exec(dropSQL)
+	_, err := t.db.ExecContext(ctx, dropSQL)
 	if err != nil {
 		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
 			return err
 		}
 	}
 	dropSQL = "DROP TABLE " + t.name + "_instances"
-	_, err = t.db.Exec(dropSQL)
+	_, err = t.db.ExecContext(ctx, dropSQL)
 	if err != nil {
 		if myErr, ok := err.(*mysql.MySQLError); !ok || myErr.Number != 1051 { // Unknown table
 			return err
