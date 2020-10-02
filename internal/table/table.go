@@ -217,7 +217,7 @@ func (t *Table) EnableJob(ctx context.Context, key Key) (*Job, error) {
 		"WHERE path = ? AND body = ?"
 	_, err = tx.ExecContext(ctx, s, j.NextRun.Time.UTC(), j.NextSched.UTC(), key.Path, key.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set next run: %w", err)
+		return nil, fmt.Errorf("failed to enable job: %w", err)
 	}
 	return &j, tx.Commit()
 }
@@ -242,7 +242,7 @@ func (t *Table) DisableJob(ctx context.Context, key Key) (*Job, error) {
 	s := "UPDATE " + t.name + " SET next_run=NULL, next_sched=? WHERE path = ? AND body = ?"
 	_, err = tx.ExecContext(ctx, s, j.NextSched, key.Path, key.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set next run: %w", err)
+		return nil, fmt.Errorf("failed to disable job: %w", err)
 	}
 	j.NextRun.Valid = false
 	return &j, tx.Commit()
@@ -363,7 +363,7 @@ func (t *Table) updateNextRun(ctx context.Context, key Key, randFactor float64, 
 	// This may happen when the job gets disabled while it is running.
 	_, err = tx.ExecContext(ctx, s, j.NextRun, j.NextSched.UTC(), key.Path, key.Body)
 	if err != nil {
-		return fmt.Errorf("failed to set next run: %w", err)
+		return fmt.Errorf("failed to update next run: %w", err)
 	}
 	return tx.Commit()
 }
@@ -455,8 +455,13 @@ func withRetries(retryCount int, fn func() error) (err error) {
 		if err == nil {
 			return nil
 		}
-		if dur := mysqlRetryInterval(err); dur > 0 {
-			log.Println("mysql error:", err.Error(), "sleeping", dur.String(), "before retry")
+		var merr *mysql.MySQLError
+		ok := errors.As(err, &merr)
+		if !ok {
+			return err
+		}
+		if dur := mysqlRetryInterval(merr); dur > 0 {
+			log.Println("mysql error:", merr.Number, "sleeping", dur.String(), "before retry")
 			time.Sleep(dur)
 			continue
 		}
