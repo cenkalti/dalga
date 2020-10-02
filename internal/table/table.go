@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/dalga/v3/internal/clock"
+	"github.com/cenkalti/dalga/v3/internal/log"
 	"github.com/cenkalti/dalga/v3/internal/retry"
 	my "github.com/go-mysql/errors"
 	"github.com/go-sql-driver/mysql"
@@ -455,6 +456,7 @@ func withRetries(retryCount int, fn func() error) (err error) {
 			return nil
 		}
 		if dur := mysqlRetryInterval(err); dur > 0 {
+			log.Println("mysql error:", err.Error(), "sleeping", dur.String(), "before retry")
 			time.Sleep(dur)
 			continue
 		}
