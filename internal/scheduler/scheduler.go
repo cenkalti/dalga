@@ -107,6 +107,13 @@ func (s *Scheduler) runOnce(ctx context.Context) bool {
 		case s.maxRunning <- struct{}{}:
 		case <-ctx.Done():
 			return false
+		default:
+			log.Printf("max running jobs (%d) has been reached", cap(s.maxRunning))
+			select {
+			case s.maxRunning <- struct{}{}:
+			case <-ctx.Done():
+				return false
+			}
 		}
 	}
 	s.wg.Add(1)
