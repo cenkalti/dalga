@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,6 +26,7 @@ type Scheduler struct {
 	runningJobs         int32
 	scanFrequency       time.Duration
 	done                chan struct{}
+	wg                  sync.WaitGroup
 }
 
 func New(t *table.Table, instanceID uint32, baseURL string, clientTimeout time.Duration, retryParams *retry.Retry, randomizationFactor float64, scanFrequency time.Duration) *Scheduler {
@@ -52,7 +54,10 @@ func (s *Scheduler) Running() int {
 
 // Run runs a loop that reads the next Job from the queue and executees it in it's own goroutine.
 func (s *Scheduler) Run(ctx context.Context) {
-	defer close(s.done)
+	defer func() {
+		s.wg.Wait()
+		close(s.done)
+	}()
 
 	for {
 		log.Debugln("---")
@@ -91,20 +96,27 @@ func (s *Scheduler) runOnce(ctx context.Context) bool {
 		return true
 	}
 
+	s.wg.Add(1)
 	go func(job *table.Job) {
 		atomic.AddInt32(&s.runningJobs, 1)
-		if err := s.execute(ctx, job); err != nil {
+		if err := s.execute(job); err != nil {
 			log.Printf("error on execution of %s: %s", job.String(), err)
 		}
 		atomic.AddInt32(&s.runningJobs, -1)
+		s.wg.Done()
 	}(job)
 
 	return true
 }
 
 // execute makes a POST request to the endpoint and updates the Job's next run time.
-func (s *Scheduler) execute(ctx context.Context, j *table.Job) error {
+func (s *Scheduler) execute(j *table.Job) error {
 	log.Debugln("executing:", j.String())
+
+	// Stopping the instance should not cancel running execution.
+	// We rely on http.Client timeout and MySQL driver timeouts here.
+	ctx := context.Background()
+
 	code, err := s.postJob(ctx, j)
 	if err != nil {
 		log.Printf("error while doing http post for %s: %s", j.String(), err)
