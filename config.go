@@ -2,6 +2,7 @@ package dalga
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -65,7 +66,10 @@ type mysqlConfig struct {
 }
 
 func (c mysqlConfig) DSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&multiStatements=true", c.User, c.Password, c.Host, c.Port, c.DB)
+	v := url.Values{}
+	v.Set("parseTime", "true")
+	v.Set("multiStatements", "true")
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?", c.User, c.Password, c.Host, c.Port, c.DB) + v.Encode()
 }
 
 type listenConfig struct {
