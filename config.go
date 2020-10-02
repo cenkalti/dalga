@@ -24,6 +24,9 @@ var DefaultConfig = Config{
 		Password:     "",
 		MaxOpenConns: 50,
 		SkipLocked:   true,
+		DialTimeout:  30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	},
 	Listen: listenConfig{
 		Host:            "127.0.0.1",
@@ -63,12 +66,18 @@ type mysqlConfig struct {
 	Password     string
 	MaxOpenConns int
 	SkipLocked   bool
+	DialTimeout  time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
 }
 
 func (c mysqlConfig) DSN() string {
 	v := url.Values{}
 	v.Set("parseTime", "true")
 	v.Set("transaction_isolation", "'READ-COMMITTED'")
+	v.Set("timeout", c.DialTimeout.String())
+	v.Set("readTimeout", c.ReadTimeout.String())
+	v.Set("writeTimeout", c.WriteTimeout.String())
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?", c.User, c.Password, c.Host, c.Port, c.DB) + v.Encode()
 }
 
