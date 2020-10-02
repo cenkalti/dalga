@@ -68,6 +68,7 @@ type mysqlConfig struct {
 func (c mysqlConfig) DSN() string {
 	v := url.Values{}
 	v.Set("parseTime", "true")
+	v.Set("transaction_isolation", "'READ-COMMITTED'")
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?", c.User, c.Password, c.Host, c.Port, c.DB) + v.Encode()
 }
 
