@@ -8,4 +8,5 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/knadh/koanf v0.12.1
 	github.com/senseyeio/duration v0.0.0-20180430131211-7c2a214ada46
+	github.com/go-bindata/go-bindata/v3 v3.1.3
 )

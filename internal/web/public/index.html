@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" href="path/to/fav.png">
+    <title>Dalga Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/halfmoon@1.1.0/css/halfmoon-variables.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0=" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        :root {
+            --primary-color: var(--yellow-color);                                     /* Before: var(--blue-color) */
+            --primary-color-light: var(--yellow-color-light);                         /* Before: var(--blue-color-light) */
+            --primary-color-very-light: var(--yellow-color-very-light);               /* Before: var(--blue-color-very-light) */
+            --primary-color-dark: var(--yellow-color-dark);                           /* Before: var(--blue-color-dark) */
+            --primary-color-very-dark: var(--yellow-color-very-dark);                 /* Before: var(--blue-color-very-dark) */
+            --primary-box-shadow-color: var(--yellow-box-shadow-color);               /* Before: var(--blue-box-shadow-color) */
+            --primary-box-shadow-color-darker: var(--yellow-box-shadow-color-darker); /* Before: var(--blue-box-shadow-color-darker) */
+            --text-color-on-primary-color-bg: var(--text-color-on-yellow-color-bg);   /* Before: var(--text-color-on-blue-color-bg) */
+        }
+    </style>
+</head>
+
+<body class="with-custom-webkit-scrollbars with-custom-css-scrollbars" data-dm-shortcut-enabled="true" data-set-preferred-mode-onload="true" x-data="alpineController()" x-init="init()">
+    <div class="modal" id="modal-1" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <a href="#" class="close" role="button" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </a>
+                <h5 class="modal-title">Create a New Job</h5>
+                <form action="/" method="PUT" class="w-400 mw-full" onsubmit="updateAction">
+                    <div class="form-group">
+                        <label for="new-path" class="required">Path</label>
+                        <input type="text" class="form-control" id="new-path" placeholder="destination-path" required="required">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-body" class="required">Body</label>
+                        <input type="text" class="form-control" id="new-body" placeholder="message_body" required="required">
+                    </div>
+                    <div class="form-row row-eq-spacing">
+                        <div class="col">
+                            <label for="new-firstrun" class="required">First Run</label>
+                            <input type="text" class="form-control" id="new-firstrun" placeholder="2007-03-01T13:00:00Z">
+                        </div>
+                        <div class="col">
+                            <label for="new-interval" class="required">Interval</label>
+                            <input type="text" class="form-control" id="new-interval" placeholder="1h5m">
+                        </div>
+                    </div>
+                    <div class="form-row row-eq-spacing">
+                        <div class="col">
+                            <div class="custom-checkbox">
+                                <input type="checkbox" id="checkbox-1" value="">
+                                <label for="checkbox-1">Immediate</label>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="custom-checkbox">
+                                <input type="checkbox" id="checkbox-2" value="">
+                                <label for="checkbox-2">One-Off</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-location">Location</label>
+                        <input type="text" class="form-control" id="new-location" placeholder="Los Angeles">
+                    </div>
+                </form>
+                <div class="text-right mt-20">
+                    <a href="#" class="btn mr-5" role="button">Cancel</a>
+                    <a href="#" class="btn btn-primary" role="button">Create</a>
+                </div>
+            </div>
+        </div>
+    </div> <!-- /modal -->
+    <div class="page-wrapper with-navbar">
+        <div class="sticky-alerts"></div>
+        <nav class="navbar">
+            <a href="#" class="navbar-brand">
+                Dalga
+            </a>
+            <span class="navbar-text text-monospace">v3.0</span> <!-- text-monospace = font-family shifted to monospace -->
+            <div class="ml-auto">
+                <a href="#modal-1" class="btn btn-primary" role="button">
+                    New Job
+                </a>
+            </div>
+            <div class="ml-10">
+                <button class="btn btn-square" type="button" onclick="halfmoon.toggleDarkMode()">
+                    <i class="fa fa-moon-o" aria-hidden="true"></i>
+                    <span class="sr-only">Toggle dark mode</span>
+                </button>
+            </div>
+        </nav>
+        <div class="content-wrapper">
+            <div class="content-wrapper">
+                <div class="container-fluid">
+                    <div class="content">
+                        <h1 class="content-title font-size-22">
+                            <!-- font-size-22 = font-size: 2.2rem (22px) -->
+                            Instance <span x-text="instance()"></span>
+                        </h1>
+                        <span x-text="'There are '+(instanceCount() || '0')+' total instances.'"></span>
+                    </div>
+                    <div class="row row-eq-spacing">
+                        <div class="col-6 col-xl-3">
+                            <div class="card">
+                                <h2 class="card-title">
+                                    Total Jobs
+                                    <!-- <span class="font-size-16 text-muted">(Current year)</span> -->
+                                </h2>
+                                <div><canvas id="total-jobs-chart" height="200"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-xl-3">
+                            <div class="card">
+                                <h2 class="card-title">
+                                    Running Jobs
+                                    <!-- <span class="font-size-16 text-muted">(Current year)</span> -->
+                                </h2>
+                                <div><canvas id="running-jobs-chart" height="200"></canvas></div>
+                            </div>
+                        </div>
+                        <!-- Overflow occurs here on large screens (and down) -->
+                        <!-- Therefore, a v-spacer is added at this point -->
+                        <div class="v-spacer d-xl-none"></div> <!-- d-xl-none = display: none only on extra large screens (> 1200px) -->
+                        <div class="col-6 col-xl-3">
+                            <div class="card">
+                                <h2 class="card-title">
+                                    Pending Jobs
+                                    <!-- <span class="font-size-16 text-muted">(Current year)</span> -->
+                                </h2>
+                                <div><canvas id="pending-jobs-chart" height="200"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-xl-3">
+                            <div class="card">
+                                <h2 class="card-title">
+                                    Lag
+                                    <!-- <span class="font-size-16 text-muted">(Current year)</span> -->
+                                </h2>
+                                <div><canvas id="lag-chart" height="200"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row row-eq-spacing-lg">
+                        <div class="col-lg-4">
+                            <h2 class="content-title">Job Lookup</h2>
+                            <form>
+                                <div class="form-row row-eq-spacing">
+                                    <div class="col">
+                                        <label for="path" class="required">Path</label>
+                                        <input type="text" class="form-control" id="path" placeholder="destination-path" required="required">
+                                    </div>
+                                    <div class="col">
+                                        <label for="body" class="required">Body</label>
+                                        <input type="text" class="form-control" id="body" placeholder="message_body" required="required">
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" type="submit">Lookup</button>
+                            </form>
+                        </div>
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="content">
+                                    <span class="badge badge-pill badge-success float-right">Running</span>
+                                    <span class="badge badge-pill badge-danger float-right">Overdue</span>
+                                    <h2 class="content-title">
+                                        Job Details
+                                    </h2>
+                                </div>
+                                <div class="content">
+                                    <div class="container-fluid">
+                                        <div class="row row-eq-spacing">
+                                            <div class="col">
+                                                <strong class="content-title">Path</strong>
+                                                <div class="code">/what</div>
+                                            </div>
+                                            <div class="col">
+                                                <strong class="content-title">Body</strong>
+                                                <div class="code">{"a": "b"}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="content">
+                                    <div class="container-fluid">
+                                        <div class="row row-eq-spacing">
+                                            <div class="col text-center">
+                                                <strong class="content-title">Interval</strong>
+                                                <div class="border rounded">
+                                                    Stuff
+                                                </div>
+                                            </div>
+                                            <div class="col text-center">
+                                                <strong class="content-title">Scheduled For</strong>
+                                                <div class="border rounded">
+                                                    Stuff
+                                                </div>
+                                            </div>
+                                            <div class="col text-center">
+                                                <strong class="content-title">Next Execution</strong>
+                                                <div class="border rounded">
+                                                    Stuff
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- /content-wrapper -->
+    </div> <!-- /page-wrapper -->
+    <script src="https://cdn.jsdelivr.net/npm/halfmoon@1.1.0/js/halfmoon.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.min.js" integrity="sha512-s+xg36jbIujB2S2VKfpGmlC3T5V2TF3lY48DX7u2r9XzGzgPsa6wTpOQA7J9iffvdeBN0q9tKzRxVxw1JviZPg==" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.2.0/highlight.min.js" integrity="sha512-TDKKr+IvoqZnPzc3l35hdjpHD0m+b2EC2SrLEgKDRWpxf2rFCxemkgvJ5kfU48ip+Y+m2XVKyOCD85ybtlZDmw==" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.7.0/dist/alpine.min.js" defer></script>
+    <script type="text/javascript">
+    // Get the root element
+    var rootElem = document.documentElement;
+
+    // Create the chart
+    try {
+        var demoChart = new Chart(
+            document.getElementById("demo-chart").getContext("2d"),
+            getChartOptions(
+                getComputedStyle(rootElem).getPropertyValue("--chart-bg-color"),
+                getComputedStyle(rootElem).getPropertyValue("--primary-color")
+            )
+        );
+    } catch (err) {}
+
+    var totalJobsChart = new Chart(
+        document.getElementById("total-jobs-chart").getContext("2d"),
+        getChartOptions(
+            getComputedStyle(rootElem).getPropertyValue("--chart-bg-color"),
+            getComputedStyle(rootElem).getPropertyValue("--primary-color")
+        )
+    );
+
+    var runningJobsChart = new Chart(
+        document.getElementById("running-jobs-chart").getContext("2d"),
+        getChartOptions(
+            getComputedStyle(rootElem).getPropertyValue("--chart-bg-color"),
+            getComputedStyle(rootElem).getPropertyValue("--primary-color")
+        )
+    );
+
+    var pendingJobsChart = new Chart(
+        document.getElementById("pending-jobs-chart").getContext("2d"),
+        getChartOptions(
+            getComputedStyle(rootElem).getPropertyValue("--chart-bg-color"),
+            getComputedStyle(rootElem).getPropertyValue("--primary-color")
+        )
+    );
+
+    var lagChart = new Chart(
+        document.getElementById("lag-chart").getContext("2d"),
+        getChartOptions(
+            getComputedStyle(rootElem).getPropertyValue("--chart-bg-color"),
+            getComputedStyle(rootElem).getPropertyValue("--primary-color")
+        )
+    );
+
+    function addChartData(chart, data) {
+        chart.data.datasets.forEach(dataset => {
+            dataset.data.push(data)
+        })
+    }
+
+    function removeChartData(chart) {
+        chart.data.datasets.forEach(dataset => {
+            dataset.data.shift();
+        })
+    }
+
+    function alpineController() {
+        return {
+            max: 25,
+            statii: [],
+            init() { this.fetchStatus(100)() },
+            fetchStatus(delay) {
+                let that = this;
+                return function() {
+                    fetch('/status')
+                        .then(response => response.json())
+                        .then(data => { that.updateStatus(data) })
+                        .catch(error => console.error('Error:', error))
+                        .finally(() => {
+                            let newDelay = Math.min(delay * 1.5, 5000);
+                            setTimeout(that.fetchStatus(newDelay), newDelay);
+                        });
+                }
+            },
+            updateStatus(data) {
+                this.statii.push(data);
+                addChartData(totalJobsChart, data.total_jobs);
+                addChartData(runningJobsChart, data.running_jobs);
+                addChartData(pendingJobsChart, data.pending_jobs);
+                addChartData(lagChart, data.lag);
+                if (this.statii.length > this.max) {
+                    this.statii.shift();
+                    for (const c of [totalJobsChart, runningJobsChart, pendingJobsChart, lagChart]) {
+                        removeChartData(c);
+                    }
+                }
+                for (const c of [totalJobsChart, runningJobsChart, pendingJobsChart, lagChart]) {
+                    c.update();
+                }
+            },
+            status() { return this.statii.length && this.statii[0] || {} },
+            instance() { return this.status().instance_id || '' },
+            instanceCount() { return this.status().total_instances || '' },
+        }
+    }
+
+    flatpickr("#new-firstrun", {
+        enableTime: true,
+        minDate: 'today',
+        dateFormat: 'Z',
+    });
+
+    document.addEventListener("DOMContentLoaded", function() {
+        hljs.initHighlightingOnLoad();
+    })
+
+    function updateAction() {
+        let newPath = document.getElementById('#new-path').value;
+        let newBody = document.getElementById('#new-body').value;
+        let action = `/jobs/${newPath}/${newBody}`;
+        document.getElementById('#createForm').action = action;
+        return true;
+    }
+
+    function getChartOptions(bgColor, borderColor) {
+        return {
+            type: "line",
+            data: {
+                datasets: [{
+                    data: [],
+                    backgroundColor: bgColor,
+                    borderColor: borderColor,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true,
+                            display: true
+                        }
+                    }],
+                    xAxes: [{
+                        ticks: {
+                            display: true
+                        },
+                        gridLines: {
+                            display: false,
+                            drawBorder: false
+                        }
+                    }],
+                },
+                legend: {
+                    display: false
+                },
+                tooltips: {
+                    enabled: false
+                },
+                elements: {
+                    point: {
+                        radius: 0
+                    }
+                }
+            }
+        }
+    }
+    </script>
+</body>
+
+</html>
