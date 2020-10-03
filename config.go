@@ -77,6 +77,7 @@ func (c mysqlConfig) DSN() string {
 	v := url.Values{}
 	v.Set("parseTime", "true")
 	v.Set("transaction_isolation", "'READ-COMMITTED'")
+	v.Set("tx_isolation", "'READ-COMMITTED'") // for MariaDB
 	v.Set("timeout", c.DialTimeout.String())
 	v.Set("readTimeout", c.ReadTimeout.String())
 	v.Set("writeTimeout", c.WriteTimeout.String())
