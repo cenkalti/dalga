@@ -17,17 +17,18 @@ var DefaultConfig = Config{
 		MaxRunning:       100,
 	},
 	MySQL: mysqlConfig{
-		Host:         "127.0.0.1",
-		Port:         3306,
-		DB:           "test",
-		Table:        "dalga",
-		User:         "root",
-		Password:     "",
-		MaxOpenConns: 50,
-		SkipLocked:   true,
-		DialTimeout:  30 * time.Second,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Host:                          "127.0.0.1",
+		Port:                          3306,
+		DB:                            "test",
+		Table:                         "dalga",
+		User:                          "root",
+		Password:                      "",
+		MaxOpenConns:                  50,
+		SkipLocked:                    true,
+		TransactionIsolationParamName: "transaction_isolation",
+		DialTimeout:                   30 * time.Second,
+		ReadTimeout:                   30 * time.Second,
+		WriteTimeout:                  30 * time.Second,
 	},
 	Listen: listenConfig{
 		Host:            "127.0.0.1",
@@ -60,24 +61,24 @@ type jobsConfig struct {
 }
 
 type mysqlConfig struct {
-	Host         string
-	Port         int
-	DB           string
-	Table        string
-	User         string
-	Password     string
-	MaxOpenConns int
-	SkipLocked   bool
-	DialTimeout  time.Duration
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
+	Host                          string
+	Port                          int
+	DB                            string
+	Table                         string
+	User                          string
+	Password                      string
+	MaxOpenConns                  int
+	SkipLocked                    bool
+	TransactionIsolationParamName string
+	DialTimeout                   time.Duration
+	ReadTimeout                   time.Duration
+	WriteTimeout                  time.Duration
 }
 
 func (c mysqlConfig) DSN() string {
 	v := url.Values{}
 	v.Set("parseTime", "true")
-	v.Set("transaction_isolation", "'READ-COMMITTED'")
-	v.Set("tx_isolation", "'READ-COMMITTED'") // for MariaDB
+	v.Set(c.TransactionIsolationParamName, "'READ-COMMITTED'")
 	v.Set("timeout", c.DialTimeout.String())
 	v.Set("readTimeout", c.ReadTimeout.String())
 	v.Set("writeTimeout", c.WriteTimeout.String())
