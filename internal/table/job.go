@@ -27,6 +27,11 @@ type Job struct {
 	InstanceID *uint32
 }
 
+type JobWithID struct {
+	Job
+	ID int64
+}
+
 type Key struct {
 	// Path is where the job is going to be POSTed when it's time came.
 	Path string

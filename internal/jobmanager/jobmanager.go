@@ -3,12 +3,18 @@ package jobmanager
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/cenkalti/dalga/v4/internal/log"
 	"github.com/cenkalti/dalga/v4/internal/scheduler"
 	"github.com/cenkalti/dalga/v4/internal/table"
 	"github.com/senseyeio/duration"
+)
+
+const (
+	orderInsert    = "insert-order"
+	orderNextSched = "next-sched"
 )
 
 type JobManager struct {
@@ -31,6 +37,87 @@ func New(t *table.Table, s *scheduler.Scheduler) *JobManager {
 		table:     t,
 		scheduler: s,
 	}
+}
+
+func (m *JobManager) List(ctx context.Context, path, sortBy string, reverse bool, limit int64) (jobs []table.Job, cursor string, err error) {
+	var orderByColumn string
+	switch sortBy {
+	case orderInsert:
+		orderByColumn = "id"
+	case orderNextSched:
+		orderByColumn = "next_sched, id"
+	default:
+		return nil, "", errors.New("invalid sort-by param")
+	}
+	jobsWithID, err := m.table.List(ctx, path, orderByColumn, reverse, "", "", limit)
+	if err != nil {
+		return nil, "", err
+	}
+	jobs = make([]table.Job, 0, len(jobsWithID))
+	for _, j := range jobsWithID {
+		jobs = append(jobs, j.Job)
+	}
+	if len(jobsWithID) > 0 {
+		lastItem := jobsWithID[len(jobsWithID)-1]
+		cursor = generateCursor(lastItem, path, sortBy, reverse, limit)
+	}
+	return
+}
+
+func (m *JobManager) ListContinue(ctx context.Context, cursor string) (jobs []table.Job, nextCursor string, err error) {
+	var c Cursor
+	err = c.Decode(cursor)
+	if err != nil {
+		return nil, "", errors.New("invalid cursor")
+	}
+	var orderByColumn, greaterThan, lessThan string
+	switch c.SortBy {
+	case orderInsert:
+		orderByColumn = "id"
+		if c.Reverse {
+			lessThan = c.LastValue
+		} else {
+			greaterThan = c.LastValue
+		}
+	case orderNextSched:
+		orderByColumn = "next_sched, id"
+		if c.Reverse {
+			lessThan = "'" + c.LastValue + "'"
+		} else {
+			greaterThan = "'" + c.LastValue + "'"
+		}
+	default:
+		return nil, "", errors.New("invalid sort-by param")
+	}
+	jobsWithID, err := m.table.List(ctx, c.Path, orderByColumn, c.Reverse, greaterThan, lessThan, c.Limit)
+	if err != nil {
+		return nil, "", err
+	}
+	jobs = make([]table.Job, 0, len(jobsWithID))
+	for _, j := range jobsWithID {
+		jobs = append(jobs, j.Job)
+	}
+	if len(jobsWithID) > 0 {
+		lastItem := jobsWithID[len(jobsWithID)-1]
+		nextCursor = generateCursor(lastItem, c.Path, c.SortBy, c.Reverse, c.Limit)
+	}
+	return
+}
+
+func generateCursor(job table.JobWithID, path, sortBy string, reverse bool, limit int64) string {
+	c := Cursor{
+		Path:    path,
+		SortBy:  sortBy,
+		Reverse: reverse,
+		Limit:   limit,
+	}
+	switch sortBy {
+	case orderInsert:
+		c.LastValue = strconv.FormatInt(job.ID, 10)
+	case orderNextSched:
+		c.LastValue = job.NextSched.Format(time.RFC3339)
+	}
+	return c.Encode()
 }
 
 func (m *JobManager) Get(ctx context.Context, path, body string) (*table.Job, error) {
