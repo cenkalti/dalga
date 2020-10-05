@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/dalga/v3/internal/clock"
@@ -42,6 +43,7 @@ func New(db *sql.DB, name string) *Table {
 func (t *Table) Create(ctx context.Context) error {
 	const createTableSQL = "" +
 		"CREATE TABLE `%s` (" +
+		"  `id`          BIGINT              NOT NULL AUTO_INCREMENT," +
 		"  `path`        VARCHAR(255)        NOT NULL," +
 		"  `body`        VARCHAR(255)        NOT NULL," +
 		"  `interval`    VARCHAR(255)        NOT NULL," +
@@ -51,6 +53,7 @@ func (t *Table) Create(ctx context.Context) error {
 		"  `instance_id` INT                 UNSIGNED," +
 		"  PRIMARY KEY (`path`, `body`)," +
 		"  KEY         (`next_run`)," +
+		"  UNIQUE KEY  (`id`)," +
 		"  FOREIGN KEY (`instance_id`) REFERENCES `%s_instances` (`id`) ON DELETE SET NULL" +
 		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
 	const createInstancesTableSQL = "" +
@@ -85,9 +88,49 @@ func (t *Table) Drop(ctx context.Context) error {
 	return nil
 }
 
+func (t *Table) List(ctx context.Context, path, orderByColumn string, reverse bool, greaterThan, lessThan string, limit int64) (jobs []JobWithID, err error) {
+	var conditions []string
+	if path != "" {
+		conditions = append(conditions, "path='"+path+"'")
+	}
+	orderByDirection := "ASC"
+	if reverse {
+		orderByDirection = "DESC"
+	}
+	if greaterThan != "" {
+		conditions = append(conditions, orderByColumn+" > "+greaterThan)
+	}
+	if lessThan != "" {
+		conditions = append(conditions, orderByColumn+" < "+lessThan)
+	}
+	s := "SELECT id, path, body, `interval`, location, next_run, next_sched, instance_id FROM " + t.name
+	if len(conditions) > 0 {
+		s += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	if orderByColumn != "" {
+		s += " ORDER BY " + orderByColumn + " " + orderByDirection
+	}
+	if limit != 0 {
+		s += " LIMIT " + strconv.FormatInt(limit, 10)
+	}
+	rows, err := t.db.QueryContext(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		ji, _, err := t.scanJobWithID(rows, false)
+		if err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, ji)
+	}
+	return jobs, rows.Err()
+}
+
 // Get returns a job from the scheduler table, whether or not it is disabled.
 func (t *Table) Get(ctx context.Context, path, body string) (*Job, error) {
-	s := "SELECT path, body, `interval`, location, next_run, next_sched, instance_id " +
+	s := "SELECT id, path, body, `interval`, location, next_run, next_sched, instance_id " +
 		"FROM " + t.name + " " +
 		"WHERE path = ? AND body = ?"
 	row := t.db.QueryRowContext(ctx, s, path, body)
@@ -105,7 +148,7 @@ func (t *Table) getForUpdate(ctx context.Context, path, body string) (tx *sql.Tx
 			tx.Rollback() // nolint: errcheck
 		}
 	}()
-	s := "SELECT path, body, `interval`, location, next_run, next_sched, instance_id, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP()) " +
+	s := "SELECT id, path, body, `interval`, location, next_run, next_sched, instance_id, IFNULL(CAST(? as DATETIME), UTC_TIMESTAMP()) " +
 		"FROM " + t.name + " " +
 		"WHERE path = ? AND body = ? FOR UPDATE"
 	row := tx.QueryRowContext(ctx, s, t.Clk.NowUTC(), path, body)
@@ -113,13 +156,22 @@ func (t *Table) getForUpdate(ctx context.Context, path, body string) (tx *sql.Tx
 	return
 }
 
-func (t *Table) scanJob(row *sql.Row, withCurrentTime bool) (j Job, now time.Time, err error) {
+type Scanner interface {
+	Scan(dest ...interface{}) error
+}
+
+func (t *Table) scanJob(row Scanner, withCurrentTime bool) (j Job, now time.Time, err error) {
+	ji, now, err := t.scanJobWithID(row, withCurrentTime)
+	return ji.Job, now, err
+}
+
+func (t *Table) scanJobWithID(row Scanner, withCurrentTime bool) (j JobWithID, now time.Time, err error) {
 	var interval, locationName string
 	var instanceID sql.NullInt64
 	if withCurrentTime {
-		err = row.Scan(&j.Path, &j.Body, &interval, &locationName, &j.NextRun, &j.NextSched, &instanceID, &now)
+		err = row.Scan(&j.ID, &j.Path, &j.Body, &interval, &locationName, &j.NextRun, &j.NextSched, &instanceID, &now)
 	} else {
-		err = row.Scan(&j.Path, &j.Body, &interval, &locationName, &j.NextRun, &j.NextSched, &instanceID)
+		err = row.Scan(&j.ID, &j.Path, &j.Body, &interval, &locationName, &j.NextRun, &j.NextSched, &instanceID)
 	}
 	if err == sql.ErrNoRows {
 		err = ErrNotExist

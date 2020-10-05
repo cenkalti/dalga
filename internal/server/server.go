@@ -69,6 +69,8 @@ func (s *Server) createServer() http.Server {
 	m.Put(path, handler(s.handleSchedule))
 	m.Patch(path, handler(s.handlePatch))
 	m.Del(path, handler(s.handleCancel))
+	m.Get("/jobs", http.HandlerFunc(s.handleJobs))
+	m.Get("/jobs/continue", http.HandlerFunc(s.handleJobsContinue))
 	m.Get("/status", http.HandlerFunc(s.handleStatus))
 	return http.Server{
 		Handler:      m,
@@ -238,6 +240,61 @@ func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request, path, body
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
+	path := r.FormValue("path")
+	sortBy := r.FormValue("sort-by")
+	if sortBy == "" {
+		sortBy = "insert-order"
+	}
+	reverse, _ := strconv.ParseBool(r.FormValue("reverse"))
+	limit := int64(100)
+	limitString := r.FormValue("limit")
+	if limitString != "" {
+		var err error
+		limit, err = strconv.ParseInt(limitString, 10, 64)
+		if err != nil {
+			http.Error(w, "invalid limit", http.StatusBadRequest)
+			return
+		}
+	}
+	jobs, cursor, err := s.jobs.List(r.Context(), path, sortBy, reverse, limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	result := map[string]interface{}{
+		"jobs":   jobs,
+		"cursor": cursor,
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
+}
+
+func (s *Server) handleJobsContinue(w http.ResponseWriter, r *http.Request) {
+	cursor := r.FormValue("cursor")
+	jobs, cursor, err := s.jobs.ListContinue(r.Context(), cursor)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	result := map[string]interface{}{
+		"jobs":   jobs,
+		"cursor": cursor,
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
