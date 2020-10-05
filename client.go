@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +46,79 @@ func NewClient(baseURL string, opts ...ClientOpt) *Client {
 		o(c)
 	}
 	return c
+}
+
+func (clnt *Client) List(ctx context.Context, path, sortBy string, reverse bool, limit int64) (jobs []Job, cursor string, err error) {
+	params := url.Values{}
+	params.Set("path", path)
+	params.Set("sort-by", sortBy)
+	params.Set("reverse", strconv.FormatBool(reverse))
+	params.Set("limit", strconv.FormatInt(limit, 10))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, clnt.BaseURL+"/jobs?"+params.Encode(), nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	resp, err := clnt.clnt.Do(req)
+	if err != nil {
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		default:
+		}
+		return nil, "", fmt.Errorf("cannot get job: %w", err)
+	}
+	defer resp.Body.Close()
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
+	}
+
+	var result struct {
+		Jobs   []Job `json:"jobs"`
+		Cursor string
+	}
+	dec := json.NewDecoder(&buf)
+	if err := dec.Decode(&result); err != nil {
+		return nil, "", fmt.Errorf("cannot unmarshal body: %q, cause: %w", buf.String(), err)
+	}
+
+	return result.Jobs, result.Cursor, nil
+}
+
+func (clnt *Client) ListContinue(ctx context.Context, cursor string) (jobs []Job, nextCursor string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, clnt.BaseURL+"/jobs?cursor="+cursor, nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	resp, err := clnt.clnt.Do(req)
+	if err != nil {
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		default:
+		}
+		return nil, "", fmt.Errorf("cannot get job: %w", err)
+	}
+	defer resp.Body.Close()
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("unexpected status code: %d, body: %q", resp.StatusCode, buf.String())
+	}
+
+	var result struct {
+		Jobs   []Job `json:"jobs"`
+		Cursor string
+	}
+	dec := json.NewDecoder(&buf)
+	if err := dec.Decode(&result); err != nil {
+		return nil, "", fmt.Errorf("cannot unmarshal body: %q, cause: %w", buf.String(), err)
+	}
+
+	return result.Jobs, result.Cursor, nil
 }
 
 // Get retrieves the job with path and body.
