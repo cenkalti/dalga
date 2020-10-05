@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/dalga/v3/internal/instance"
-	"github.com/cenkalti/dalga/v3/internal/retry"
-	"github.com/cenkalti/dalga/v3/internal/scheduler"
-	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/cenkalti/dalga/v4/internal/instance"
+	"github.com/cenkalti/dalga/v4/internal/retry"
+	"github.com/cenkalti/dalga/v4/internal/scheduler"
+	"github.com/cenkalti/dalga/v4/internal/table"
 	"github.com/senseyeio/duration"
 )
 

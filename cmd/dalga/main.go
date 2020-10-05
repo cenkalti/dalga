@@ -10,8 +10,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/cenkalti/dalga/v3"
-	"github.com/cenkalti/dalga/v3/internal/log"
+	"github.com/cenkalti/dalga/v4"
+	"github.com/cenkalti/dalga/v4/internal/log"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/parsers/yaml"

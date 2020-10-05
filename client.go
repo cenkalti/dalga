@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/dalga/v3/internal/jobmanager"
-	"github.com/cenkalti/dalga/v3/internal/server"
-	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/cenkalti/dalga/v4/internal/jobmanager"
+	"github.com/cenkalti/dalga/v4/internal/server"
+	"github.com/cenkalti/dalga/v4/internal/table"
 	"github.com/senseyeio/duration"
 )
 

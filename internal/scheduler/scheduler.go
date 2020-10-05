@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cenkalti/dalga/v3/internal/log"
-	"github.com/cenkalti/dalga/v3/internal/retry"
-	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/cenkalti/dalga/v4/internal/log"
+	"github.com/cenkalti/dalga/v4/internal/retry"
+	"github.com/cenkalti/dalga/v4/internal/table"
 	"github.com/go-sql-driver/mysql"
 )
 

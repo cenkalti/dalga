@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/dalga/v3/internal/retry"
+	"github.com/cenkalti/dalga/v4/internal/retry"
 )
 
 type Retry = retry.Retry

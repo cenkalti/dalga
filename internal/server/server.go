@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
-	"github.com/cenkalti/dalga/v3/internal/jobmanager"
-	"github.com/cenkalti/dalga/v3/internal/log"
-	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/cenkalti/dalga/v4/internal/jobmanager"
+	"github.com/cenkalti/dalga/v4/internal/log"
+	"github.com/cenkalti/dalga/v4/internal/table"
 	"github.com/senseyeio/duration"
 )
 

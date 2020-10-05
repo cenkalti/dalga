@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cenkalti/dalga/v3/internal/log"
-	"github.com/cenkalti/dalga/v3/internal/scheduler"
-	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/cenkalti/dalga/v4/internal/log"
+	"github.com/cenkalti/dalga/v4/internal/scheduler"
+	"github.com/cenkalti/dalga/v4/internal/table"
 	"github.com/senseyeio/duration"
 )
 

@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/dalga/v3/internal/clock"
-	"github.com/cenkalti/dalga/v3/internal/log"
-	"github.com/cenkalti/dalga/v3/internal/retry"
+	"github.com/cenkalti/dalga/v4/internal/clock"
+	"github.com/cenkalti/dalga/v4/internal/log"
+	"github.com/cenkalti/dalga/v4/internal/retry"
 	my "github.com/go-mysql/errors"
 	"github.com/go-sql-driver/mysql"
 	"github.com/senseyeio/duration"

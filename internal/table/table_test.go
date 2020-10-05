@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/dalga/v3/internal/clock"
-	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/cenkalti/dalga/v4/internal/clock"
+	"github.com/cenkalti/dalga/v4/internal/table"
 	"github.com/senseyeio/duration"
 )
 

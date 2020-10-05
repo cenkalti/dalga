@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/cenkalti/dalga/v4/internal/table"
 )
 
 type Instance struct {
