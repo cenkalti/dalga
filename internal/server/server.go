@@ -13,6 +13,7 @@ import (
 	"github.com/cenkalti/dalga/v3/internal/jobmanager"
 	"github.com/cenkalti/dalga/v3/internal/log"
 	"github.com/cenkalti/dalga/v3/internal/table"
+	"github.com/cenkalti/dalga/v3/internal/web"
 	"github.com/senseyeio/duration"
 )
 
@@ -70,8 +71,12 @@ func (s *Server) createServer() http.Server {
 	m.Patch(path, handler(s.handlePatch))
 	m.Del(path, handler(s.handleCancel))
 	m.Get("/status", http.HandlerFunc(s.handleStatus))
+	mux := http.NewServeMux()
+	mux.Handle("/jobs/", m)
+	mux.Handle("/status", m)
+	mux.Handle("/", http.FileServer(web.AssetFile()))
 	return http.Server{
-		Handler:      m,
+		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  10 * time.Second,
