@@ -18,6 +18,9 @@ import (
 
 type Server struct {
 	shutdownTimeout time.Duration
+	idleTimeout     time.Duration
+	readTimeout     time.Duration
+	writeTimeout    time.Duration
 	jobs            *jobmanager.JobManager
 	table           *table.Table
 	instanceID      uint32
@@ -26,9 +29,12 @@ type Server struct {
 	done            chan struct{}
 }
 
-func New(j *jobmanager.JobManager, t *table.Table, instanceID uint32, l net.Listener, shutdownTimeout time.Duration) *Server {
+func New(j *jobmanager.JobManager, t *table.Table, instanceID uint32, l net.Listener, shutdownTimeout, idleTimeout, readTimeout, writeTimeout time.Duration) *Server {
 	s := &Server{
 		shutdownTimeout: shutdownTimeout,
+		idleTimeout:     idleTimeout,
+		readTimeout:     readTimeout,
+		writeTimeout:    writeTimeout,
 		jobs:            j,
 		table:           t,
 		instanceID:      instanceID,
@@ -72,9 +78,9 @@ func (s *Server) createServer() http.Server {
 	m.Get("/status", http.HandlerFunc(s.handleStatus))
 	return http.Server{
 		Handler:      m,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  10 * time.Second,
+		ReadTimeout:  s.readTimeout,
+		WriteTimeout: s.writeTimeout,
+		IdleTimeout:  s.idleTimeout,
 	}
 }
 

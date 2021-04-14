@@ -61,7 +61,7 @@ func New(config Config) (*Dalga, error) {
 	}
 	s := scheduler.New(t, i.ID(), config.Endpoint.BaseURL, config.Endpoint.Timeout, r, config.Jobs.RandomizationFactor, config.Jobs.ScanFrequency, config.Jobs.MaxRunning)
 	j := jobmanager.New(t, s)
-	srv := server.New(j, t, i.ID(), lis, config.Listen.ShutdownTimeout)
+	srv := server.New(j, t, i.ID(), lis, config.Listen.ShutdownTimeout, config.Listen.IdleTimeout, config.Listen.ReadTimeout, config.Listen.WriteTimeout)
 	return &Dalga{
 		config:    config,
 		db:        db,
