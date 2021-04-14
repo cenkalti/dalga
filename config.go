@@ -34,6 +34,9 @@ var DefaultConfig = Config{
 		Host:            "127.0.0.1",
 		Port:            34006,
 		ShutdownTimeout: 10 * time.Second,
+		IdleTimeout:     60 * time.Second,
+		ReadTimeout:     10 * time.Second,
+		WriteTimeout:    10 * time.Second,
 	},
 	Endpoint: endpointConfig{
 		BaseURL: "http://127.0.0.1:5000/",
@@ -89,6 +92,9 @@ type listenConfig struct {
 	Host            string
 	Port            int
 	ShutdownTimeout time.Duration
+	IdleTimeout     time.Duration
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
 }
 
 func (c listenConfig) Addr() string {
